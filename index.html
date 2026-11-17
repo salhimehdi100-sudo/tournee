@@ -387,12 +387,15 @@ async function ocrPage(src){
   const canvas=await preprocess(src);
   const {data:{text}}=await w.recognize(canvas);
   const raw=$('#rawText');raw.value=(raw.value?raw.value+'\n\n':'')+text.trim();
-  const p=parsePage(text);
-  if(!p)return {ok:false,text};
-  const r=mergeParsed([p]);
-  return {ok:true,p,dup:r.dup};
+  const list=parseMulti(text);
+  if(!list.length)return {ok:false,text};
+  const r=mergeParsed(list);
+  return {ok:true,list,added:r.added,dup:r.dup};
 }
-function pageSummary(p){return `${p.pda||'?'} · ${p.name||'(nom ?)'} · ${p.address} · ${p.parcels} colis`}
+function pageSummary(r){
+  if(r.list.length===1)return `${r.list[0].pda||'?'} · ${r.list[0].name||'(nom ?)'} · ${r.list[0].address} · ${r.list[0].parcels} colis`+(r.dup?' (déjà scanné)':'');
+  return `${r.added} adresse(s) : `+r.list.map(p=>p.pda||p.address).join(', ')+(r.dup?` · ${r.dup} déjà scannée(s)`:'');
+}
 async function handlePhotos(files){
   if(!files||!files.length)return;
   let added=0,fails=0;
@@ -401,9 +404,9 @@ async function handlePhotos(files){
     await getWorker();
     for(let i=0;i<files.length;i++){
       $('#ocrStatus').textContent=`Lecture de la photo ${i+1}/${files.length}…`;prog('#ocrProg',0);
-      const r=await ocrPage(files[i]);if(r.ok)added++;else fails++;
+      const r=await ocrPage(files[i]);if(r.ok)added+=r.added;else fails++;
     }
-    $('#ocrStatus').innerHTML=`✅ ${added} page(s) lue(s)`+(fails?`, <b>${fails} illisible(s)</b> (ouvre « Texte lu » ou ajoute à la main)`:'')+`. <b>Vérifie la liste ci-dessous.</b>`;
+    $('#ocrStatus').innerHTML=`✅ ${added} adresse(s) ajoutée(s)`+(fails?`, <b>${fails} illisible(s)</b> (ouvre « Texte lu » ou ajoute à la main)`:'')+`. <b>Vérifie la liste ci-dessous.</b>`;
   }catch(e){$('#ocrStatus').textContent='❌ Erreur de lecture : '+(e.message||e)+' (connexion internet nécessaire la 1re fois)'}
   prog('#ocrProg',null);
 }
@@ -442,7 +445,7 @@ async function processScanQueue(){
   while(scanQueue.length){
     const c=scanQueue.shift();updateScanInfo();
     try{const r=await ocrPage(c);
-      if(r.ok){scanStats.ok++;$('#scanLast').textContent='✅ '+pageSummary(r.p)+(r.dup?' (doublon ?)':'')}
+      if(r.ok){scanStats.ok+=r.added;$('#scanLast').textContent='✅ '+pageSummary(r)}
       else{scanStats.fail++;$('#scanLast').textContent='⚠️ Page illisible — recapture-la (plus près, sans reflet).'}
     }catch(e){scanStats.fail++;$('#scanLast').textContent='❌ '+(e.message||e)}
     updateScanInfo();
@@ -567,17 +570,31 @@ function parsePage(text){
   name=name.replace(/(\p{L})[._,]+\s*(?=\p{L})/gu,'$1 ').replace(/\s+/g,' ').trim();
   return {pda,name,address,parcels};
 }
+/* Une capture peut contenir plusieurs adresses : découpage par n° de tour (D27, D28…), sinon par ligne d'adresse */
+function tourCodeAt(l){const m=l.match(TOUR_RE);return !!(m&&/\d/.test(m[2]))}
+function isAddrLine(l){return (STREET_WORD_RE.test(l)&&/\d/.test(l))||/^\d{1,4}\s?[A-Za-z]?([-–\/]\s?\d{1,4})?\s+[A-Za-zÀ-ÿ]{3,}/.test(l)}
+function parseMulti(text){
+  const lines=cleanLines(text).filter(l=>!isJunk(l));
+  let starts=[];
+  lines.forEach((l,i)=>{if(tourCodeAt(l))starts.push(i)});
+  if(starts.length<2){starts=[];lines.forEach((l,i)=>{if(isAddrLine(l))starts.push(i)})}
+  if(starts.length<2)return [parsePage(lines.join('\n'))].filter(Boolean);
+  return starts.map((s,k)=>lines.slice(s,k+1<starts.length?starts[k+1]:lines.length).join('\n')).map(parsePage).filter(Boolean);
+}
 /* Texte collé : listes avec codes postaux, ou pages séparées par une ligne vide */
 function parseAuto(text){
   const blocks=String(text||'').split(/\n\s*\n/).filter(b=>b.trim());
   const hasPc=cleanLines(text).some(l=>PC_RE.test(l)&&!STREET_WORD_RE.test(l.replace(PC_RE,'')));
   if(hasPc){const r=parseText(text);if(r.length)return r}
-  return blocks.map(parsePage).filter(Boolean);
+  return blocks.flatMap(parseMulti);
 }
 function mergeParsed(list){
   let added=0,dup=0;
   for(const p of list){
-    const d=state.entries.some(e=>e.pda===p.pda&&norm(e.name)===norm(p.name)&&addrKey(e.address)===addrKey(p.address)&&(+e.parcels||1)===(p.parcels||1));
+    const pda=p.pda==null?null:String(p.pda);
+    // même n° de tour + même adresse = page déjà scannée (ex. listes qui se chevauchent) -> ignorée
+    if(pda&&state.entries.some(e=>e.pda===pda&&addrKey(e.address)===addrKey(p.address))){dup++;continue}
+    const d=state.entries.some(e=>e.pda===pda&&norm(e.name)===norm(p.name)&&addrKey(e.address)===addrKey(p.address)&&(+e.parcels||1)===(p.parcels||1));
     if(d)dup++;
     state.entries.push({id:uid(),pda:p.pda==null?null:String(p.pda),name:p.name,address:p.address,parcels:p.parcels||1,lat:null,lon:null,geo:null,dup:d});added++;
   }
