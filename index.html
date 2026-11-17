@@ -63,6 +63,8 @@ label.chk input{width:auto}
 .entry label{font-size:12px;color:var(--muted);display:block}
 .entry input{padding:7px 8px}
 .entry .fields{display:grid;gap:6px}
+.entry input.warn{border-color:var(--warn);background:var(--warn-bg)}
+.entry .note{font-size:13px;color:var(--muted);margin-top:4px}
 .badge{display:inline-block;font-size:12px;font-weight:600;padding:3px 8px;border-radius:999px;white-space:nowrap;text-align:center}
 .b-ok{background:var(--ok-bg);color:var(--ok)}
 .b-bad{background:var(--bad-bg);color:var(--bad)}
@@ -211,6 +213,8 @@ details summary{cursor:pointer;font-weight:600}
     </div>
     <p class="muted">Positions corrigées à la main mémorisées : <b id="learnCount">0</b>
       <button class="iconbtn" id="clearLearn" title="Oublier">✖</button></p>
+    <p class="muted">Rues officielles apprises (corrigent la lecture) : <b id="streetCount">0</b>
+      <button class="iconbtn" id="clearStreets" title="Oublier">✖</button></p>
     <p class="muted">Tout reste sur ton téléphone. Aucun compte, aucun serveur à toi.</p>
   </div>
 </section>
@@ -297,6 +301,9 @@ const DEFAULT_STATE={commune:'',depot:null,returnToDepot:false,entries:[],stops:
 let state=Object.assign({},DEFAULT_STATE,load(LS_STATE,{}));
 let learned=load(LS_LEARN,{});
 let geoCache=load(LS_GEO,{});
+// rues officielles déjà rencontrées (registres UrbIS / Vlaanderen) : servent à corriger l'OCR
+const LS_STREETS='tournee_streets_v1';
+let streets=load(LS_STREETS,{});
 const persist=()=>save(LS_STATE,state);
 
 /* ================= Utilitaires ================= */
@@ -612,7 +619,8 @@ async function handlePhotos(files){
       $('#ocrStatus').textContent=`Lecture de la photo ${i+1}/${files.length}…`;prog('#ocrProg',0);
       const r=await ocrPage(files[i]);if(r.ok)added+=r.added;else fails++;
     }
-    $('#ocrStatus').innerHTML=`✅ ${added} adresse(s) ajoutée(s)`+(fails?`, <b>${fails} illisible(s)</b> (ouvre « Texte lu » ou ajoute à la main)`:'')+`. <b>Vérifie la liste ci-dessous.</b>`;
+    const toCheck=state.entries.filter(e=>Object.keys(entryIssues(e)).length).length;
+    $('#ocrStatus').innerHTML=`✅ ${added} adresse(s) ajoutée(s)`+(fails?`, <b>${fails} illisible(s)</b> (ouvre « Texte lu » ou ajoute à la main)`:'')+(toCheck?`, <b>${toCheck} à vérifier (en orange)</b>`:'')+`. <b>Vérifie la liste ci-dessous.</b>`;
   }catch(e){$('#ocrStatus').textContent='❌ Erreur de lecture : '+(e.message||e)+' (connexion internet nécessaire la 1re fois)'}
   prog('#ocrProg',null);
 }
@@ -726,6 +734,118 @@ const COMMUNES={1000:'Bruxelles',1020:'Laeken',1030:'Schaerbeek',1040:'Etterbeek
 const COMMUNE_NAMES=['bruxelles','brussel','brussels','laeken','laken','schaerbeek','schaarbeek','etterbeek','ixelles','elsene','saint gilles','sint gillis','anderlecht','molenbeek','molenbeek saint jean','sint jans molenbeek','koekelberg','berchem sainte agathe','sint agatha berchem','ganshoren','jette','neder over heembeek','haren','evere','woluwe saint pierre','sint pieters woluwe','auderghem','oudergem','watermael boitsfort','watermaal bosvoorde','uccle','ukkel','forest','vorst','woluwe saint lambert','sint lambrechts woluwe','saint josse ten noode','saint josse','sint joost ten node','leuven','louvain','heverlee','kessel lo','wilsele','wijgmaal'];
 function lev(a,b){const m=a.length,n=b.length;if(!m)return n;if(!n)return m;let prev=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){const cur=[i];for(let j=1;j<=n;j++)cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));prev=cur}return prev[n]}
 function isCommune(s){const n=norm(s);if(n.length<4)return false;return COMMUNE_NAMES.some(c=>c===n||(Math.abs(c.length-n.length)<=2&&lev(c,n)<=Math.max(1,Math.floor(c.length/6))))}
+
+/* ================= Corrections après l'OCR ================= */
+const COMMUNE_PC=[[1000,'bruxelles,brussel,brussels'],[1020,'laeken,laken'],[1030,'schaerbeek,schaarbeek'],[1040,'etterbeek'],[1050,'ixelles,elsene'],[1060,'saint gilles,sint gillis'],[1070,'anderlecht'],[1080,'molenbeek,molenbeek saint jean,sint jans molenbeek'],[1081,'koekelberg'],[1082,'berchem sainte agathe,sint agatha berchem'],[1083,'ganshoren'],[1090,'jette'],[1120,'neder over heembeek'],[1130,'haren'],[1140,'evere'],[1150,'woluwe saint pierre,sint pieters woluwe'],[1160,'auderghem,oudergem'],[1170,'watermael boitsfort,watermaal bosvoorde'],[1180,'uccle,ukkel'],[1190,'forest,vorst'],[1200,'woluwe saint lambert,sint lambrechts woluwe'],[1210,'saint josse ten noode,saint josse,sint joost ten node'],[3000,'leuven,louvain'],[3001,'heverlee'],[3010,'kessel lo'],[3012,'wilsele'],[3018,'wijgmaal']];
+/* code postal d'une commune écrite (même avec une faute) */
+function pcOfCommune(s){
+  const n=norm(s);if(n.length<4)return '';
+  let best='',bd=99;
+  for(const [pc,names] of COMMUNE_PC)for(const c of names.split(',')){
+    const d=c===n?0:Math.abs(c.length-n.length)<=2?lev(c,n):99;
+    if(d<bd&&d<=Math.max(1,Math.floor(c.length/6))){bd=d;best=String(pc)}
+  }
+  return best;
+}
+/* ressemblance 0..1 entre deux textes */
+function sim(a,b){a=norm(a);b=norm(b);if(!a&&!b)return 1;if(!a||!b)return 0;return 1-lev(a,b)/Math.max(a.length,b.length)}
+/* chiffres lus comme lettres : « 1O70 » « l2 » « 2O » -> 1070, 12, 20 (« 12B » bis et « b3 » boîte gardés) */
+const TO_DIGIT={O:'0',o:'0',I:'1',l:'1','|':'1',S:'5',Z:'2'};
+function fixNumTok(t){
+  if(/^[bB]\d/.test(t))return t;
+  const m=t.match(/^([0-9OoIl|SZ]+)([A-Za-z]?)([.;:]?)$/);
+  if(!m||m[1].length>5||!/\d/.test(m[1]))return t;
+  return m[1].replace(/[OoIl|SZ]/g,c=>TO_DIGIT[c])+m[2]+m[3];
+}
+/* lettres lues comme chiffres au milieu d'un mot : « L0i » -> « Loi », « Ma5son » -> « Masson » */
+const TO_LETTER={'0':['o','O'],'1':['l','I'],'5':['s','S'],'8':['b','B'],'|':['l','I']};
+function fixWordTok(t){
+  if(!/\p{L}.*\p{L}/u.test(t))return t;
+  const ch=[...t];
+  for(let i=1;i<ch.length-1;i++){
+    const r=TO_LETTER[ch[i]];if(!r)continue;
+    const a=ch[i-1],b=ch[i+1];if(!/\p{L}/u.test(a)||!/\p{L}/u.test(b))continue;
+    const up=a===a.toUpperCase()&&b===b.toUpperCase();
+    ch[i]=up?r[1]:r[0];
+  }
+  return ch.join('');
+}
+function fixTokens(s){return String(s||'').replace(/[^\s\/\-–,]+/g,t=>{const n=fixNumTok(t);return n!==t?n:fixWordTok(t)})}
+/* un nom ne contient pas de chiffres : « MEHD1 » -> « MEHDI », « 0mar » -> « Omar » */
+function fixNameTok(t){
+  if(!/\p{L}/u.test(t))return t;
+  const ch=[...t];
+  for(let i=0;i<ch.length;i++){
+    const r=TO_LETTER[ch[i]];if(!r)continue;
+    const a=ch[i-1]||'',b=ch[i+1]||'',L=/\p{L}/u;
+    if(!L.test(a)&&!L.test(b))continue;
+    const ref=L.test(a)?a:b;
+    ch[i]=i===0||(ref===ref.toUpperCase()&&(!L.test(b)||b===b.toUpperCase()))?r[1]:r[0];
+  }
+  return ch.join('');
+}
+function fixName(n){return String(n||'').replace(/[^\s\-,]+/g,fixNameTok).replace(/^[^\p{L}]+|[^\p{L}.]+$/gu,'').replace(/\s+/g,' ').trim()}
+/* code postal inconnu mais commune lisible : « 1O7O Anderlecht » « 1007 Anderlecht » -> 1070 */
+function fixPcText(a){
+  const s=splitAddress(a);
+  if(s.pc&&!COMMUNES[s.pc]&&s.city){const pc=pcOfCommune(s.city);if(pc)return a.replace(new RegExp('\\b'+s.pc+'\\b'),pc)}
+  return a;
+}
+/* rue la plus proche parmi les rues officielles déjà rencontrées */
+function learnStreet(name,pc){
+  if(!name||/ - /.test(name))return; // noms bilingues « Rue X - Xstraat » : ignorés
+  const k=norm(name);if(k.length<4)return;
+  const s=streets[k]||(streets[k]={n:name,pc:[]});s.n=name;
+  if(pc&&!s.pc.includes(String(pc)))s.pc.push(String(pc));
+  save(LS_STREETS,streets);
+}
+function bestStreet(st,pc){
+  const k=norm(expandStreet(st));if(k.length<5)return null;
+  if(streets[k])return streets[k].n;
+  const tol=Math.max(1,Math.floor(k.length/7));
+  let best=null,bd=99,second=99;
+  for(const key in streets){
+    if(Math.abs(key.length-k.length)>tol)continue;
+    let d=lev(key,k);
+    if(pc&&streets[key].pc.length&&!streets[key].pc.includes(String(pc)))d+=0.5; // autre commune : moins probable
+    if(d<bd){second=bd;bd=d;best=key}else if(d<second)second=d;
+  }
+  // corrigée seulement si une seule rue est proche (sinon on ne devine pas)
+  return best&&bd<=tol&&second-bd>=1?streets[best].n:null;
+}
+function fixStreetText(a){
+  const s=splitAddress(a);if(!s.street)return a;
+  const c=bestStreet(s.street,s.pc);
+  return c&&c!==s.street&&a.includes(s.street)?a.replace(s.street,c):a;
+}
+function fixAddress(a){return fixStreetText(fixPcText(fixTokens(a)))}
+/* champs douteux, affichés en orange dans la liste */
+function entryIssues(e){
+  const out={},s=splitAddress(e.address||'');
+  if(!e.name||/\d/.test(e.name)||norm(e.name).length<3)out.name='nom';
+  if(!s.street||!/[A-Za-zÀ-ÿ]{3,}/.test(s.street))out.address='rue';
+  else if(!s.num)out.address='n° de maison';
+  else if(s.pc&&!COMMUNES[s.pc])out.address='code postal';
+  if(e.pda==null||!/\d/.test(e.pda))out.pda='n° de tour';
+  if((+e.parcels||1)>20)out.parcels='nombre de colis';
+  return out;
+}
+/* plusieurs lectures de la même page : la valeur la plus « centrale » gagne */
+function medoid(vals){
+  vals=vals.filter(v=>v!=null&&v!=='');if(!vals.length)return '';
+  let best=vals[0],bs=-1;
+  for(const a of vals){const s=vals.reduce((t,b)=>t+sim(a,b),0);if(s>bs+1e-9){bs=s;best=a}}
+  return best;
+}
+function modeNum(nums){const c={};nums.forEach(n=>c[n]=(c[n]||0)+1);return +Object.keys(c).sort((a,b)=>c[b]-c[a]||a-b)[0]||1}
+function revote(e,p){
+  if(e.edited)return; // corrigé à la main : on ne touche plus
+  e.reads=(e.reads||[{name:e.name,address:e.address,parcels:e.parcels}]).concat([{name:p.name,address:p.address,parcels:p.parcels||1}]).slice(-5);
+  e.name=medoid(e.reads.map(r=>r.name))||e.name;
+  e.parcels=modeNum(e.reads.map(r=>+r.parcels||1));
+  const addr=medoid(e.reads.map(r=>r.address))||e.address;
+  if(addr!==e.address){e.address=addr;e.lat=e.lon=null;e.geo=null;e.bldg='';e.boxNo='';e.ambig=false;delete e.swap;delete e.ocrAddr}
+}
 /* la ligne suivante est-elle la suite de l'adresse ? */
 function isAddrCont(cur,nxt){
   if(!nxt||TOUR_RE.test(nxt)&&/^[A-Z]{1,2}\s?\d/.test(nxt))return false;
@@ -824,9 +944,11 @@ function parseAuto(text){
 function mergeParsed(list){
   let added=0,dup=0;
   for(const p of list){
+    p.address=fixAddress(p.address);p.name=fixName(p.name);
     const pda=p.pda==null?null:String(p.pda);
-    // même n° de tour + même adresse = page déjà scannée (ex. listes qui se chevauchent) -> ignorée
-    if(pda&&state.entries.some(e=>e.pda===pda&&addrKey(e.address)===addrKey(p.address))){dup++;continue}
+    // même n° de tour + adresse ou nom proche = même page relue -> nouvelle lecture ajoutée au vote, pas de doublon
+    const same=pda&&/\d/.test(pda)&&state.entries.find(e=>e.pda===pda&&(sim(addrKey(e.address),addrKey(p.address))>=0.6||(p.name&&sim(e.name,p.name)>=0.7)));
+    if(same){revote(same,p);dup++;continue}
     const d=state.entries.some(e=>e.pda===pda&&norm(e.name)===norm(p.name)&&addrKey(e.address)===addrKey(p.address)&&(+e.parcels||1)===(p.parcels||1));
     if(d)dup++;
     state.entries.push({id:uid(),pda:p.pda==null?null:String(p.pda),name:p.name,address:p.address,parcels:p.parcels||1,lat:null,lon:null,geo:null,dup:d});added++;
@@ -857,19 +979,25 @@ function renderEntries(){
   const list=sortedEntries();
   const parcels=list.reduce((s,e)=>s+(+e.parcels||1),0);
   $('#entryCount').textContent=list.length?`(${list.length} lignes · ${parcels} colis)`:'';
-  $('#entries').innerHTML=list.length?list.map(e=>`
+  $('#entries').innerHTML=list.length?list.map(e=>{
+    const iss=entryIssues(e),w=f=>iss[f]?' class="warn"':'',todo=Object.values(iss);
+    return `
     <div class="entry card" data-id="${e.id}" style="margin-bottom:8px">
       <div class="top">
-        <div><label>N° tour</label><input data-f="pda" autocapitalize="characters" value="${esc(e.pda==null?'':e.pda)}"></div>
-        <div><label>Colis</label><input type="number" inputmode="numeric" min="1" data-f="parcels" value="${e.parcels||1}"></div>
+        <div><label>N° tour</label><input data-f="pda"${w('pda')} autocapitalize="characters" value="${esc(e.pda==null?'':e.pda)}"></div>
+        <div><label>Colis</label><input type="number"${w('parcels')} inputmode="numeric" min="1" data-f="parcels" value="${e.parcels||1}"></div>
         <div>${geoBadge(e)}${e.dup?' <span class="badge b-warn" title="Même page déjà scannée ? Supprime-la si c’est la même photo.">doublon ?</span>':''}</div>
         <button class="iconbtn" data-act="del" title="Supprimer">🗑️</button>
       </div>
       <div class="fields">
-        <input data-f="name" placeholder="Nom du client" value="${esc(e.name)}">
-        <input data-f="address" placeholder="7-9 Rue de Courtrai (code postal facultatif)" value="${esc(e.address)}">
+        <input data-f="name"${w('name')} placeholder="Nom du client" value="${esc(e.name)}">
+        <input data-f="address"${w('address')} placeholder="7-9 Rue de Courtrai (code postal facultatif)" value="${esc(e.address)}">
       </div>${bldgLine(e)}
-    </div>`).join(''):'<p class="muted">Aucun colis pour l’instant.</p>';
+      ${todo.length?`<div class="note">⚠️ À vérifier : ${esc(todo.join(', '))}</div>`:''}
+      ${e.ocrAddr?`<div class="note">✏️ Rue corrigée par le registre officiel (lu : ${esc(e.ocrAddr)})</div>`:''}
+      ${e.reads&&e.reads.length>1?`<div class="note">🔁 ${e.reads.length} lectures de cette page combinées</div>`:''}
+    </div>`}).join(''):'<p class="muted">Aucun colis pour l’instant.</p>';
+  const sc=$('#streetCount');if(sc)sc.textContent=Object.keys(streets).length;
   $('#learnCount').textContent=Object.keys(learned).length;
   updateHeader();
 }
@@ -881,7 +1009,7 @@ $('#entries').addEventListener('change',e=>{
   else if(f==='parcels')ent.parcels=Math.max(1,+v||1);
   else if(f==='name')ent.name=v.trim();
   else if(f==='address'){ent.address=v.trim();ent.lat=ent.lon=null;ent.geo=null;ent.bldg='';ent.boxNo='';ent.ambig=false;delete ent.swap}
-  ent.dup=false;
+  ent.dup=false;ent.edited=true;
   persist();
   if(f==='address'||f==='pda')renderEntries();else updateHeader();
 });
@@ -920,13 +1048,14 @@ async function nominatim(q,bounded){
   const ref=state.depot||z.center;
   j.sort((x,y)=>haversine(ref,{lat:+x.lat,lon:+x.lon})-haversine(ref,{lat:+y.lat,lon:+y.lon}));
   const best=j.find(x=>x.address&&x.address.house_number)||j[0];
-  return {lat:+best.lat,lon:+best.lon,exact:!!(best.address&&best.address.house_number)};
+  const ad=best.address||{};
+  return {lat:+best.lat,lon:+best.lon,exact:!!ad.house_number,street:ad.road||'',pcOut:ad.postcode||''};
 }
 async function vlaanderen(q){ // registre officiel des adresses flamandes (Louvain, etc.)
   const r=await fetch('https://geo.api.vlaanderen.be/geolocation/v4/Location?c=1&q='+encodeURIComponent(q));
   if(!r.ok)throw new Error('vl '+r.status);
   const j=await r.json();const L=j.LocationResult&&j.LocationResult[0];
-  return L&&L.Location?{lat:+L.Location.Lat_WGS84,lon:+L.Location.Lon_WGS84,exact:!/straat|street|gemeente|municip/i.test(L.LocationType||'')}:null;
+  return L&&L.Location?{lat:+L.Location.Lat_WGS84,lon:+L.Location.Lon_WGS84,exact:!/straat|street|gemeente|municip/i.test(L.LocationType||''),street:L.Thoroughfarename||'',pcOut:L.Zipcode||''}:null;
 }
 /* registre officiel des adresses de Bruxelles (UrbIS) : numéros exacts, tolérant aux fautes */
 async function urbis(q,wantPc){
@@ -935,7 +1064,7 @@ async function urbis(q,wantPc){
   const j=await r.json();const x=j.result&&j.result[0];
   if(!x||!x.point||(x.score!=null&&x.score<60))return null;
   const pc=x.address&&x.address.street&&x.address.street.postCode;
-  return {lat:+x.point.y,lon:+x.point.x,exact:!!(x.address&&x.address.number),pcMismatch:!!(wantPc&&pc&&pc!==String(wantPc))};
+  return {lat:+x.point.y,lon:+x.point.x,exact:!!(x.address&&x.address.number),pcMismatch:!!(wantPc&&pc&&pc!==String(wantPc)),street:(x.address&&x.address.street&&x.address.street.name)||'',pcOut:pc||''};
 }
 function communeParts(){const m=String(state.commune||'').match(/^(\d{4})\s+(.+)$/);return m?{pc:m[1],city:m[2]}:null}
 /* cherche « rue + numéro » ; exact=false si seul la rue a été trouvée */
@@ -972,10 +1101,10 @@ async function geocode(addr,isDepot,swap){
   if(swap===undefined&&twoNums){
     const r2=await geoTry(s.street,B,s.pc,s.city);
     const ok1=!!(r&&r.exact),ok2=!!(r2&&r2.exact);
-    if(!ok1&&ok2)res={lat:r2.lat,lon:r2.lon,q:'ok',bldg:B,boxNo:A};
+    if(!ok1&&ok2)res={lat:r2.lat,lon:r2.lon,q:'ok',bldg:B,boxNo:A,street:r2.street,pcOut:r2.pcOut};
     else if(ok1&&ok2&&haversine(r,r2)>30)res={lat:r.lat,lon:r.lon,q:'ok',bldg:A,boxNo:B,ambig:true};
   }
-  if(!res&&r)res={lat:r.lat,lon:r.lon,q:r.exact&&!r.pcMismatch?'ok':'approx',bldg:A,boxNo:B};
+  if(!res&&r)res={lat:r.lat,lon:r.lon,q:r.exact&&!r.pcMismatch?'ok':'approx',bldg:A,boxNo:B,street:r.street,pcOut:r.pcOut};
   if(!res){ // dernier recours : la rue seule (position approximative)
     let r3=null;try{r3=await nominatim(expandStreet(s.street)+(s.pc?', '+s.pc+' '+s.city:s.city?', '+s.city:''),!s.pc)}catch(e){}
     if(r3)res={lat:r3.lat,lon:r3.lon,q:'approx',bldg:A,boxNo:B};
@@ -987,6 +1116,15 @@ async function geocodeEntry(e){
   const r=await geocode(e.address,false,e.swap);
   if(r){e.lat=r.lat;e.lon=r.lon;e.geo=r.q;e.bldg=r.bldg||'';e.boxNo=r.boxNo||'';e.ambig=!!r.ambig}
   else{e.geo='fail';e.ambig=false}
+  // adresse trouvée exactement : on retient la rue officielle et on corrige l'orthographe lue
+  if(r&&r.q==='ok'&&r.street){
+    learnStreet(r.street,r.pcOut);
+    const s=splitAddress(e.address),st=expandStreet(s.street);
+    if(!e.edited&&s.street&&!/ - /.test(r.street)&&norm(st)!==norm(r.street)&&sim(st,r.street)>=0.6&&e.address.includes(s.street)){
+      e.ocrAddr=e.ocrAddr||e.address;e.address=e.address.replace(s.street,r.street);
+      if(e.reads)e.reads=[{name:e.name,address:e.address,parcels:e.parcels}];
+    }
+  }
 }
 $('#geoBtn').onclick=()=>geocodeAll();
 async function geocodeAll(){
@@ -1263,8 +1401,9 @@ document.addEventListener('visibilitychange',()=>{if(!$('#tab-map').classList.co
 
 /* ================= Données ================= */
 $('#newTour').onclick=()=>{if(!confirm('Effacer tous les colis et la tournée ? (le dépôt et les positions corrigées sont gardés)'))return;state.entries=[];state.stops=[];state.current=0;state.summary=null;$('#rawText').value='';persist();renderEntries();renderTour();$('#optStatus').textContent='';$('#geoStatus').textContent='';$('#ocrStatus').textContent=''};
-$('#exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify({state,learned},null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='tournee-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
-$('#importInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const j=JSON.parse(await f.text());if(j.state)state=Object.assign({},DEFAULT_STATE,j.state);if(j.learned){learned=Object.assign(learned,j.learned);save(LS_LEARN,learned)}persist();renderAll();toast('Restauré ✔')}catch(err){toast('Fichier invalide')}e.target.value=''};
+$('#exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify({state,learned,streets},null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='tournee-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
+$('#importInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const j=JSON.parse(await f.text());if(j.state)state=Object.assign({},DEFAULT_STATE,j.state);if(j.learned){learned=Object.assign(learned,j.learned);save(LS_LEARN,learned)}if(j.streets){streets=Object.assign(streets,j.streets);save(LS_STREETS,streets)}persist();renderAll();toast('Restauré ✔')}catch(err){toast('Fichier invalide')}e.target.value=''};
+$('#clearStreets').onclick=()=>{if(confirm('Oublier les rues apprises ?')){streets={};save(LS_STREETS,streets);renderEntries()}};
 $('#clearLearn').onclick=()=>{if(confirm('Oublier toutes les positions corrigées à la main ?')){learned={};save(LS_LEARN,learned);renderEntries()}};
 
 /* ================= Installation comme application ================= */
