@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6feb">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Ma Tournée</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{
+  --bg:#f4f6f9; --card:#ffffff; --text:#14181f; --muted:#5d6675; --line:#dde2ea;
+  --accent:#1f6feb; --accent-text:#ffffff; --ok:#1a7f37; --ok-bg:#dcf5e3; --bad:#c62828; --bad-bg:#fde2e2;
+  --warn:#9a6700; --warn-bg:#fff3c4; --input:#ffffff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1318; --card:#1a2029; --text:#e8edf3; --muted:#9aa4b2; --line:#2c3440;
+    --accent:#4c8dff; --accent-text:#ffffff; --ok:#4ac26b; --ok-bg:#163522; --bad:#ff6b6b; --bad-bg:#3b1a1a;
+    --warn:#f2c94c; --warn-bg:#3a3014; --input:#121821;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1318; --card:#1a2029; --text:#e8edf3; --muted:#9aa4b2; --line:#2c3440;
+  --accent:#4c8dff; --accent-text:#ffffff; --ok:#4ac26b; --ok-bg:#163522; --bad:#ff6b6b; --bad-bg:#3b1a1a;
+  --warn:#f2c94c; --warn-bg:#3a3014; --input:#121821;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:76px}
+header{position:sticky;top:0;z-index:1000;background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:10px}
+header h1{font-size:18px;margin:0;flex:1}
+main{max-width:720px;margin:0 auto;padding:12px 16px}
+section.tab{display:none}
+section.tab.active{display:block}
+nav.tabs{position:fixed;bottom:0;left:0;right:0;z-index:1000;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs button{flex:1;border:0;background:none;color:var(--muted);padding:10px 4px 12px;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:2px}
+nav.tabs button span{font-size:22px;line-height:1}
+nav.tabs button.active{color:var(--accent);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+h2{font-size:16px;margin:0 0 8px}
+.muted{color:var(--muted);font-size:14px}
+input,textarea,select{width:100%;font:inherit;color:var(--text);background:var(--input);border:1px solid var(--line);border-radius:8px;padding:9px 10px}
+textarea{min-height:110px;font-family:ui-monospace,Consolas,monospace;font-size:13px}
+label.chk{display:flex;align-items:center;gap:8px;margin-top:8px}
+label.chk input{width:auto}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;padding:10px 14px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn.bad{background:var(--bad);border-color:var(--bad);color:#fff}
+.btn.big{padding:16px;font-size:18px;border-radius:12px}
+.btn:disabled{opacity:.5}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row > *{min-width:0}
+.grow{flex:1}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mt{margin-top:8px}
+.entry .top{display:grid;grid-template-columns:80px 70px 1fr auto;gap:6px;align-items:end;margin-bottom:6px}
+.entry label{font-size:12px;color:var(--muted);display:block}
+.entry input{padding:7px 8px}
+.entry .fields{display:grid;gap:6px}
+.badge{display:inline-block;font-size:12px;font-weight:600;padding:3px 8px;border-radius:999px;white-space:nowrap;text-align:center}
+.b-ok{background:var(--ok-bg);color:var(--ok)}
+.b-bad{background:var(--bad-bg);color:var(--bad)}
+.b-warn{background:var(--warn-bg);color:var(--warn)}
+.b-none{background:var(--bg);color:var(--muted)}
+.iconbtn{border:0;background:none;font-size:20px;padding:4px 6px;cursor:pointer;color:var(--muted)}
+.progress{height:6px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:8px;display:none}
+.progress > div{height:100%;width:0;background:var(--accent);transition:width .2s}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:2000;max-width:90vw;display:none}
+/* Tournée */
+.counter{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.counter .big{font-size:30px;font-weight:800}
+.nums{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.num{background:var(--bg);border-radius:10px;padding:8px 10px;text-align:center}
+.num .lbl{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.num .val{font-size:34px;font-weight:800;line-height:1.1}
+.client{font-size:22px;font-weight:700;margin:4px 0}
+.addr{font-size:17px;margin:2px 0 10px}
+.parcels{font-size:16px;font-weight:600}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.stoplist .it{display:flex;gap:10px;align-items:center;padding:9px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.stoplist .it:last-child{border-bottom:0}
+.stoplist .it.cur{background:var(--warn-bg);border-radius:8px}
+.stoplist .n{font-weight:800;min-width:34px;text-align:right}
+.stoplist .d{flex:1;min-width:0}
+.stoplist .d div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stoplist .st{font-size:18px}
+.done .d{opacity:.55;text-decoration:line-through}
+#map{height:calc(100vh - 190px);min-height:320px;border-radius:12px;border:1px solid var(--line)}
+.pin{background:var(--accent);color:#fff;border:2px solid #fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.pin.done{background:#888}.pin.fail{background:var(--bad)}.pin.cur{background:#f59e0b}.pin.depot{background:#111;border-radius:6px}
+details summary{cursor:pointer;font-weight:600}
+#meBtn{position:absolute;right:10px;bottom:24px;z-index:500;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+#meBtn.follow{background:var(--accent);color:#fff;border-color:var(--accent)}
+#meInfo{position:absolute;left:10px;bottom:28px;z-index:500;background:var(--card);padding:3px 8px;border-radius:8px;font-size:12px}
+#meInfo:empty{display:none}
+.me{position:relative;width:44px;height:44px}
+.me-dot{position:absolute;left:13px;top:13px;width:18px;height:18px;border-radius:50%;background:#1a73e8;border:3px solid #fff;box-shadow:0 0 0 2px rgba(26,115,232,.35),0 1px 4px rgba(0,0,0,.4)}
+.me-pulse{position:absolute;left:4px;top:4px;width:36px;height:36px;border-radius:50%;background:rgba(26,115,232,.25);animation:mepulse 2s ease-out infinite}
+.me-arrow{position:absolute;left:0;top:0;width:44px;height:44px;display:none}
+.me-arrow::before{content:"";position:absolute;left:15px;top:-2px;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:14px solid #1a73e8}
+@keyframes mepulse{0%{transform:scale(.5);opacity:1}100%{transform:scale(1.4);opacity:0}}
+#scanner{position:fixed;inset:0;z-index:3000;background:#000;display:none;flex-direction:column}
+#scanVideo{flex:1;width:100%;height:100%;object-fit:contain;min-height:0}
+#scanFlash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .12s}
+.scanTop{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:rgba(0,0,0,.55);color:#fff;font-weight:700}
+.scanBottom{padding:12px 16px calc(16px + env(safe-area-inset-bottom));background:rgba(0,0,0,.75);color:#fff}
+#scanLast{font-size:14px;min-height:40px;margin-bottom:10px}
+#scanShot{width:100%;font-size:22px;padding:20px}
+.box{display:inline-block;background:var(--warn-bg);color:var(--warn);font-weight:700;border-radius:8px;padding:2px 8px;margin-left:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🚚 Ma Tournée</h1>
+  <span id="hdrInfo" class="muted"></span>
+</header>
+
+<main>
+<!-- ====== PRÉPARER ====== -->
+<section class="tab active" id="tab-prep">
+  <div class="card">
+    <h2>1. Dépôt (départ)</h2>
+    <div class="row">
+      <input id="depotInput" class="grow" placeholder="Adresse du dépôt">
+      <button class="btn" id="depotFind">Trouver</button>
+      <button class="btn" id="depotGps" title="Utiliser ma position">📍</button>
+    </div>
+    <div id="depotInfo" class="muted mt"></div>
+    <label class="chk"><input type="checkbox" id="returnDepot"> Revenir au dépôt à la fin</label>
+  </div>
+  <div class="card">
+    <h2>Commune de la tournée</h2>
+    <p class="muted" style="margin:0 0 6px">Les pages du PDA n'ont pas de code postal : choisis la commune pour localiser les adresses correctement.</p>
+    <select id="communeSel">
+      <option value="">Plusieurs communes (Bruxelles + Louvain)</option>
+      <optgroup label="Bruxelles">
+        <option>1000 Bruxelles</option><option>1020 Laeken</option><option>1030 Schaerbeek</option><option>1040 Etterbeek</option>
+        <option>1050 Ixelles</option><option>1060 Saint-Gilles</option><option>1070 Anderlecht</option><option>1080 Molenbeek-Saint-Jean</option>
+        <option>1081 Koekelberg</option><option>1082 Berchem-Sainte-Agathe</option><option>1083 Ganshoren</option><option>1090 Jette</option>
+        <option>1120 Neder-Over-Heembeek</option><option>1130 Haren</option><option>1140 Evere</option><option>1150 Woluwe-Saint-Pierre</option>
+        <option>1160 Auderghem</option><option>1170 Watermael-Boitsfort</option><option>1180 Uccle</option><option>1190 Forest</option>
+        <option>1200 Woluwe-Saint-Lambert</option><option>1210 Saint-Josse-ten-Noode</option>
+      </optgroup>
+      <optgroup label="Louvain / Leuven">
+        <option>3000 Leuven</option><option>3001 Heverlee</option><option>3010 Kessel-Lo</option><option>3012 Wilsele</option><option>3018 Wijgmaal</option>
+      </optgroup>
+    </select>
+  </div>
+
+  <div class="card">
+    <h2>2. Ajouter les colis</h2>
+    <p class="muted" style="margin:0 0 8px"><b>Une photo = une page du PDA.</b> L'app lit le n° de tour (ex. D27), l'adresse, le nom et le nombre de colis. Si un client a plusieurs pages, ses colis sont additionnés.</p>
+    <button class="btn primary big" style="width:100%;margin-bottom:8px" id="scanBtn">⚡ Scan rapide (caméra en continu)</button>
+    <div class="row">
+      <label class="btn grow" style="cursor:pointer">📷 Photo du PDA
+        <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
+      </label>
+      <label class="btn grow" style="cursor:pointer">🖼️ Galerie
+        <input type="file" id="galleryInput" accept="image/*" multiple style="display:none">
+      </label>
+    </div>
+    <div class="progress" id="ocrProg"><div></div></div>
+    <div id="ocrStatus" class="muted mt"></div>
+    <details class="mt">
+      <summary>Texte lu / coller du texte</summary>
+      <p class="muted">Tu peux corriger le texte lu, ou taper/coller des pages : une page par bloc, blocs séparés par une ligne vide.</p>
+      <textarea id="rawText" placeholder="D27&#10;7-9 Rue de Courtrai&#10;Mehdi Solhi&#10;2&#10;&#10;D28&#10;..."></textarea>
+      <div class="row mt">
+        <button class="btn" id="parseBtn">Analyser ce texte</button>
+        <button class="btn" id="addManual">+ Ajouter à la main</button>
+      </div>
+    </details>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">3. Liste des colis <span id="entryCount" class="muted"></span></h2>
+      <button class="btn" id="geoBtn">📍 Localiser</button>
+    </div>
+    <div class="progress" id="geoProg"><div></div></div>
+    <div id="geoStatus" class="muted mt"></div>
+    <div id="entries" class="mt"></div>
+  </div>
+
+  <div class="card">
+    <h2>4. Optimiser</h2>
+    <p class="muted" style="margin:0 0 8px">Calcule le meilleur ordre en tenant compte des sens interdits (cartes OpenStreetMap). Les clients à la même adresse sont regroupés en un seul stop.</p>
+    <button class="btn primary big" style="width:100%" id="optBtn">⚡ Optimiser la tournée</button>
+    <div class="progress" id="optProg"><div></div></div>
+    <div id="optStatus" class="muted mt"></div>
+  </div>
+
+  <div class="card">
+    <h2>Données</h2>
+    <div class="row">
+      <button class="btn" id="newTour">🗑️ Nouvelle tournée</button>
+      <button class="btn" id="exportBtn">💾 Sauvegarder</button>
+      <label class="btn" style="cursor:pointer">📂 Restaurer<input type="file" id="importInput" accept="application/json" style="display:none"></label>
+    </div>
+    <p class="muted">Positions corrigées à la main mémorisées : <b id="learnCount">0</b>
+      <button class="iconbtn" id="clearLearn" title="Oublier">✖</button></p>
+    <p class="muted">Tout reste sur ton téléphone. Aucun compte, aucun serveur à toi.</p>
+  </div>
+</section>
+
+<!-- ====== TOURNÉE ====== -->
+<section class="tab" id="tab-tour">
+  <div id="tourEmpty" class="card">
+    <h2>Pas encore de tournée</h2>
+    <p class="muted">Ajoute les colis dans « Préparer », puis appuie sur « Optimiser ».</p>
+  </div>
+  <div id="tourBody" style="display:none">
+    <div class="card">
+      <div class="counter">
+        <div><span class="muted">Stops restants</span><br><span class="big" id="remStops">0</span> <span class="muted" id="remTotal"></span></div>
+        <div style="text-align:right"><span class="muted">Colis restants</span><br><span class="big" id="remParcels">0</span></div>
+      </div>
+    </div>
+    <div class="card" id="curCard">
+      <div class="nums">
+        <div class="num"><div class="lbl">Ordre optimisé</div><div class="val" id="curOpt">–</div></div>
+        <div class="num"><div class="lbl">N° PDA</div><div class="val" id="curPda">–</div></div>
+      </div>
+      <div id="curStatus"></div>
+      <div class="client" id="curName"></div>
+      <div class="addr" id="curAddr"></div>
+      <div class="parcels" id="curParcels"></div>
+      <div class="actions">
+        <a class="btn primary big" id="wazeBtn" target="_blank" rel="noopener">🧭 Waze</a>
+        <a class="btn big" id="gmapsBtn" target="_blank" rel="noopener">🗺️ Maps</a>
+        <button class="btn ok big" id="doneBtn">✓ Livré</button>
+        <button class="btn bad big" id="failBtn">✗ Échec</button>
+        <button class="btn" id="prevBtn">◀ Précédent</button>
+        <button class="btn" id="skipBtn">Passer ▶</button>
+      </div>
+      <button class="btn mt" id="resetStopBtn" style="width:100%;display:none">↺ Remettre « à faire »</button>
+      <div class="muted mt" id="nextInfo"></div>
+    </div>
+    <div class="card">
+      <button class="btn" style="width:100%" id="reoptBtn">⚡ Réoptimiser le reste depuis ma position</button>
+      <div class="progress" id="reoptProg"><div></div></div>
+      <div id="reoptStatus" class="muted mt"></div>
+    </div>
+    <div class="card">
+      <h2>Tous les stops</h2>
+      <div class="stoplist" id="stopList"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== CARTE ====== -->
+<section class="tab" id="tab-map">
+  <p class="muted" style="margin:0 0 8px">Une position est fausse ? <b>Maintiens et glisse le point</b> au bon endroit (entrée, côté de la rue). L'app s'en souviendra pour les prochaines tournées.</p>
+  <div style="position:relative">
+    <div id="map"></div>
+    <button class="btn" id="meBtn" title="Centrer sur ma position">◎ Moi</button>
+    <div id="meInfo" class="muted"></div>
+  </div>
+</section>
+</main>
+
+<nav class="tabs">
+  <button data-tab="prep" class="active"><span>📋</span>Préparer</button>
+  <button data-tab="tour"><span>🚚</span>Tournée</button>
+  <button data-tab="map"><span>🗺️</span>Carte</button>
+</nav>
+<div id="toast"></div>
+<div id="scanner">
+  <video id="scanVideo" playsinline muted autoplay></video>
+  <div id="scanFlash"></div>
+  <div class="scanTop"><span id="scanCount"></span><button class="btn" id="scanClose">Terminer</button></div>
+  <div class="scanBottom">
+    <div id="scanLast"></div>
+    <button class="btn primary big" id="scanShot">📸 Capturer</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ================= Stockage ================= */
+const LS_STATE='tournee_state_v1', LS_LEARN='tournee_learned_v1', LS_GEO='tournee_geocache_v1';
+function load(k,def){try{const v=localStorage.getItem(k);return v?JSON.parse(v):def}catch(e){return def}}
+function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+const DEFAULT_STATE={commune:'',depot:null,returnToDepot:false,entries:[],stops:[],current:0,summary:null};
+let state=Object.assign({},DEFAULT_STATE,load(LS_STATE,{}));
+let learned=load(LS_LEARN,{});
+let geoCache=load(LS_GEO,{});
+const persist=()=>save(LS_STATE,state);
+
+/* ================= Utilitaires ================= */
+const $=s=>document.querySelector(s);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const uid=()=>Math.random().toString(36).slice(2,10);
+function norm(s){return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+let toastT;
+function toast(msg,ms=2600){const t=$('#toast');t.textContent=msg;t.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>t.style.display='none',ms)}
+function prog(id,frac){const p=$(id);if(frac==null){p.style.display='none';return}p.style.display='block';p.firstElementChild.style.width=Math.round(frac*100)+'%'}
+function fmtDur(s){s=Math.round(s/60);const h=Math.floor(s/60),m=s%60;return h?`${h} h ${String(m).padStart(2,'0')}`:`${m} min`}
+function haversine(a,b){const R=6371000,toR=Math.PI/180;const dLat=(b.lat-a.lat)*toR,dLon=(b.lon-a.lon)*toR;const x=Math.sin(dLat/2)**2+Math.cos(a.lat*toR)*Math.cos(b.lat*toR)*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
+function getGps(){return new Promise((res,rej)=>{if(!navigator.geolocation)return rej(new Error('GPS indisponible'));navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lon:p.coords.longitude}),e=>rej(e),{enableHighAccuracy:true,timeout:15000,maximumAge:30000})})}
+
+/* ================= Onglets ================= */
+document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+let wakeLock=null;
+function showTab(name){
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
+  document.querySelectorAll('section.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+name));
+  if(name==='tour'){renderTour();requestWake()}
+  if(name==='map'){renderMap();startWatch()}else stopWatch();
+  window.scrollTo(0,0);
+}
+async function requestWake(){try{if('wakeLock' in navigator&&!wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>wakeLock=null)}}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&$('#tab-tour').classList.contains('active'))requestWake()});
+
+/* ================= Dépôt ================= */
+function renderDepot(){
+  $('#returnDepot').checked=!!state.returnToDepot;
+  $('#communeSel').value=state.commune||'';
+  if(state.depot){$('#depotInput').value=state.depot.label||'';$('#depotInfo').innerHTML=`✅ Dépôt localisé (${state.depot.lat.toFixed(5)}, ${state.depot.lon.toFixed(5)})`}
+  else $('#depotInfo').textContent='Sans dépôt, la tournée part de ta position GPS actuelle.';
+}
+$('#depotFind').onclick=async()=>{
+  const q=$('#depotInput').value.trim();if(!q)return;
+  $('#depotInfo').textContent='Recherche…';
+  const r=await geocode(q,true);
+  if(r){state.depot={label:q,lat:r.lat,lon:r.lon};persist();renderDepot()}
+  else $('#depotInfo').textContent='❌ Adresse introuvable. Vérifie l’orthographe ou utilise 📍.';
+};
+$('#depotGps').onclick=async()=>{
+  $('#depotInfo').textContent='Lecture du GPS…';
+  try{const p=await getGps();state.depot={label:$('#depotInput').value.trim()||'Ma position',lat:p.lat,lon:p.lon};persist();renderDepot()}
+  catch(e){$('#depotInfo').textContent='❌ GPS indisponible ('+(e.message||e)+')'}
+};
+$('#returnDepot').onchange=e=>{state.returnToDepot=e.target.checked;persist()};
+$('#communeSel').onchange=e=>{state.commune=e.target.value;persist();
+  // les adresses non corrigées à la main seront relocalisées dans la nouvelle zone
+  state.entries.forEach(x=>{if(x.geo!=='manual'){x.lat=x.lon=null;x.geo=null}});persist();renderEntries()};
+
+/* ================= OCR (lecture des photos) ================= */
+let ocrWorker=null;
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('Impossible de charger '+src));document.head.appendChild(s)})}
+async function getWorker(){
+  if(ocrWorker)return ocrWorker;
+  if(!window.Tesseract)await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
+  $('#ocrStatus').textContent='Chargement du lecteur de texte (1re fois : quelques Mo)…';
+  ocrWorker=await Tesseract.createWorker(['fra','nld'],1,{logger:m=>{if(m.status==='recognizing text')prog('#ocrProg',m.progress)}});
+  return ocrWorker;
+}
+async function preprocess(src){
+  let bmp=src;
+  if(src instanceof Blob){try{bmp=await createImageBitmap(src,{imageOrientation:'from-image'})}catch(e){bmp=await createImageBitmap(src)}}
+  const maxSide=Math.max(bmp.width,bmp.height);
+  const scale=Math.min(2.5,2400/maxSide);
+  const c=document.createElement('canvas');c.width=Math.round(bmp.width*scale);c.height=Math.round(bmp.height*scale);
+  const ctx=c.getContext('2d');ctx.drawImage(bmp,0,0,c.width,c.height);
+  const img=ctx.getImageData(0,0,c.width,c.height),d=img.data;
+  // niveaux de gris + étirement du contraste
+  const hist=new Uint32Array(256);
+  for(let i=0;i<d.length;i+=4){const g=(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114)|0;d[i]=g;hist[g]++}
+  const total=d.length/4;let lo=0,hi=255,acc=0;
+  for(let v=0;v<256;v++){acc+=hist[v];if(acc>total*0.02){lo=v;break}}
+  acc=0;for(let v=255;v>=0;v--){acc+=hist[v];if(acc>total*0.02){hi=v;break}}
+  const span=Math.max(1,hi-lo);
+  let sum=0;
+  for(let i=0;i<d.length;i+=4){let g=Math.max(0,Math.min(255,((d[i]-lo)*255/span)|0));d[i]=g;sum+=g}
+  const invert=(sum/total)<110; // écran sombre (mode nuit) -> on inverse
+  for(let i=0;i<d.length;i+=4){let g=d[i];if(invert)g=255-g;d[i]=d[i+1]=d[i+2]=g}
+  ctx.putImageData(img,0,0);
+  return c;
+}
+/* Lit une image (photo, fichier ou capture caméra) = une page du PDA */
+async function ocrPage(src){
+  const w=await getWorker();
+  const canvas=await preprocess(src);
+  const {data:{text}}=await w.recognize(canvas);
+  const raw=$('#rawText');raw.value=(raw.value?raw.value+'\n\n':'')+text.trim();
+  const p=parsePage(text);
+  if(!p)return {ok:false,text};
+  const r=mergeParsed([p]);
+  return {ok:true,p,dup:r.dup};
+}
+function pageSummary(p){return `${p.pda||'?'} · ${p.name||'(nom ?)'} · ${p.address} · ${p.parcels} colis`}
+async function handlePhotos(files){
+  if(!files||!files.length)return;
+  let added=0,fails=0;
+  try{
+    $('#ocrStatus').textContent='Préparation…';
+    await getWorker();
+    for(let i=0;i<files.length;i++){
+      $('#ocrStatus').textContent=`Lecture de la photo ${i+1}/${files.length}…`;prog('#ocrProg',0);
+      const r=await ocrPage(files[i]);if(r.ok)added++;else fails++;
+    }
+    $('#ocrStatus').innerHTML=`✅ ${added} page(s) lue(s)`+(fails?`, <b>${fails} illisible(s)</b> (ouvre « Texte lu » ou ajoute à la main)`:'')+`. <b>Vérifie la liste ci-dessous.</b>`;
+  }catch(e){$('#ocrStatus').textContent='❌ Erreur de lecture : '+(e.message||e)+' (connexion internet nécessaire la 1re fois)'}
+  prog('#ocrProg',null);
+}
+$('#photoInput').onchange=e=>{handlePhotos([...e.target.files]);e.target.value=''};
+$('#galleryInput').onchange=e=>{handlePhotos([...e.target.files]);e.target.value=''};
+$('#parseBtn').onclick=()=>{const r=mergeParsed(parseAuto($('#rawText').value));toast(`${r.added} ligne(s) ajoutée(s)`+(r.dup?`, ${r.dup} doublon(s) possible(s)`:''))};
+
+/* ---------- Mode scan rapide : caméra ouverte en continu ---------- */
+let scanStream=null,scanQueue=[],scanBusy=false,scanStats={shot:0,ok:0,fail:0};
+async function openScanner(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){toast('Caméra directe indisponible ici : utilise « Photo du PDA ».',4000);return}
+  try{
+    scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
+  }catch(e){toast('Accès caméra refusé ou impossible (il faut ouvrir l’app en https).',4500);return}
+  const v=$('#scanVideo');v.srcObject=scanStream;await v.play().catch(()=>{});
+  scanStats={shot:0,ok:0,fail:0};updateScanInfo();$('#scanLast').textContent='Cadre l’écran du PDA puis appuie sur Capturer.';
+  $('#scanner').style.display='flex';requestWake();
+  getWorker().catch(()=>{});
+}
+function closeScanner(){
+  if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null}
+  $('#scanner').style.display='none';
+  if(scanQueue.length||scanBusy)$('#ocrStatus').textContent='Lecture des dernières captures en cours…';
+}
+function updateScanInfo(){$('#scanCount').textContent=`📸 ${scanStats.shot} · ✅ ${scanStats.ok}`+(scanStats.fail?` · ⚠️ ${scanStats.fail}`:'')+(scanQueue.length||scanBusy?` · ⏳ ${scanQueue.length+(scanBusy?1:0)}`:'')}
+function captureFrame(){
+  const v=$('#scanVideo');if(!v.videoWidth)return;
+  const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
+  scanQueue.push(c);scanStats.shot++;
+  try{navigator.vibrate&&navigator.vibrate(40)}catch(e){}
+  const f=$('#scanFlash');f.style.opacity=1;setTimeout(()=>f.style.opacity=0,120);
+  updateScanInfo();processScanQueue();
+}
+async function processScanQueue(){
+  if(scanBusy)return;scanBusy=true;
+  while(scanQueue.length){
+    const c=scanQueue.shift();updateScanInfo();
+    try{const r=await ocrPage(c);
+      if(r.ok){scanStats.ok++;$('#scanLast').textContent='✅ '+pageSummary(r.p)+(r.dup?' (doublon ?)':'')}
+      else{scanStats.fail++;$('#scanLast').textContent='⚠️ Page illisible — recapture-la (plus près, sans reflet).'}
+    }catch(e){scanStats.fail++;$('#scanLast').textContent='❌ '+(e.message||e)}
+    updateScanInfo();
+  }
+  scanBusy=false;updateScanInfo();
+  if(!scanStream)$('#ocrStatus').innerHTML=`✅ ${scanStats.ok} page(s) lue(s)`+(scanStats.fail?`, <b>${scanStats.fail} illisible(s)</b>`:'')+'. <b>Vérifie la liste ci-dessous.</b>';
+}
+$('#scanBtn').onclick=openScanner;
+$('#scanShot').onclick=captureFrame;
+$('#scanClose').onclick=closeScanner;
+$('#addManual').onclick=()=>{state.entries.push({id:uid(),pda:null,name:'',address:'',parcels:1,lat:null,lon:null,geo:null});persist();renderEntries();const l=document.querySelectorAll('#entries .entry');if(l.length)l[l.length-1].scrollIntoView({behavior:'smooth'})};
+
+/* Analyse du texte : un bloc = (n° PDA) + nom + rue numéro + code postal ville */
+const PC_RE=/(?:^|[\s,])([1-9]\d{3})\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’\-\. ]{1,40})/;
+const STREET_RE=/[A-Za-zÀ-ÿ]{3,}/;
+const NUM_RE=/\b\d{1,4}\s?[A-Za-z]?\b/;
+const PDA_RE=/^\s*(?:#|n[°o]\.?\s*|nr\.?\s*|stop\s*)?(\d{1,3})(?:\s*[\.\)\]:\-–]\s*|\s+|$)(.*)$/i;
+const PARCEL_WORD_RE=/colis|pakket|stuks|stk|pcs|pièces/i;
+const PARCEL_ONLY_RE=/^\s*(?:(\d{1,2})\s*(?:colis|pakket(?:ten)?|pcs|pièces|stuks|stk)|x\s?(\d{1,2}))\s*$/i;
+function digits(s){return (s.match(/\d/g)||[]).length}
+function parseText(text){
+  const lines=String(text||'').split(/\r?\n/).map(l=>l.replace(/[|_~»«©®]/g,' ').replace(/\s+/g,' ').trim()).filter(l=>l.length>=2||/^\d$/.test(l));
+  const out=[];let buf=[];
+  for(const line of lines){
+    const m=line.match(PC_RE);
+    const pOnly=line.match(PARCEL_ONLY_RE);
+    if(pOnly&&buf.length===0&&out.length){out[out.length-1].parcels=+(pOnly[1]||pOnly[2]);continue}
+    if(!m){buf.push(line);continue}
+    const pcIdx=line.indexOf(m[1],m.index);
+    const before=line.slice(0,pcIdx).replace(/[,\-–\s]+$/,'').trim();
+    const city=m[2].replace(/\b(BE|Belgique|Belgium|België|Belgie)\b.*$/i,'').replace(/[\s\.\-]+$/,'').trim();
+    const ctx=buf.slice(-5);
+    let street='',rest=ctx;
+    if(STREET_RE.test(before)&&NUM_RE.test(before)){street=before}
+    else{
+      let idx=-1;for(let k=ctx.length-1;k>=0;k--){if(STREET_RE.test(ctx[k])&&NUM_RE.test(ctx[k])&&digits(ctx[k])<=6){idx=k;break}}
+      if(idx>=0){street=ctx[idx];rest=ctx.slice(0,idx)}
+      else if(ctx.length){street=ctx[ctx.length-1];rest=ctx.slice(0,-1)}
+      if(before&&STREET_RE.test(before))street=(street?street+' ':'')+before;
+    }
+    // n° PDA : premier petit nombre en début de ligne dans le bloc
+    let pda=null,cleanRest=[];
+    for(const l of rest){
+      const pm=l.match(PDA_RE);
+      if(pda==null&&pm&&+pm[1]>0&&+pm[1]<1000&&digits(l)<=3&&!PARCEL_WORD_RE.test(l)){pda=pm[1];if(pm[2]&&pm[2].trim())cleanRest.push(pm[2].trim())}
+      else cleanRest.push(l);
+    }
+    if(pda==null){const pm=street.match(/^\s*(?:#|n[°o]\.?\s*)(\d{1,3})\s*[\.\)\]:\-–]?\s*(.+)$/i);if(pm){pda=pm[1];street=pm[2]}}
+    // nom : dernière ligne avec des lettres et peu de chiffres
+    let name='';
+    for(let k=cleanRest.length-1;k>=0;k--){const l=cleanRest[k];if(/[A-Za-zÀ-ÿ]{2,}/.test(l)&&digits(l)<=2&&!/colis|pakket|stuks|tracking|track|barcode/i.test(l)){name=l;break}}
+    // nombre de colis
+    const blockTxt=ctx.concat(line).join(' ');
+    let parcels=1;
+    const cm=blockTxt.match(/\b(\d{1,2})\s*(?:colis|pakket(?:ten)?|pcs|pièces|stuks|stk)\b/i)||blockTxt.match(/\bx\s?(\d{1,2})\b/i);
+    if(cm&&+cm[1]>0)parcels=+cm[1];
+    street=street.replace(/[,\s]+$/,'');
+    const address=(street?street+', ':'')+m[1]+' '+city;
+    out.push({pda,name,address,parcels});
+    buf=[];
+  }
+  return out;
+}
+/* ---------- Adresses belges : « 7-9 Rue de Courtrai », « 12/3 Rue X », « Naamsestraat 69 bus 2 » ---------- */
+const STREET_WORD_RE=/(^|\s)(rue|avenue|av\.?|chauss[ée]e|ch\.|boulevard|bd|bld|place|pl\.|square|sq\.|quai|all[ée]e|impasse|clos|dr[èe]ve|chemin|parvis|galerie|passage|rond-point|cours|cit[ée]|sentier|venelle|vieux|petite|grande|mont)(\s|$)|(straat|laan|steenweg|plein|dreef|lei|weg|kaai|vest|markt|singel|plaats|baan|hof|pad|park|berg|dijk|veld|wijk)(\s|$|,|\d)/i;
+// 2e nombre : « /3 », « bte 3 », « bus 3 », « b3 » ou simplement « 12 3 »
+const BOX_RE=String.raw`(?:\s*(?:\/|bte\.?|bt\.?|bus|bo[iî]te|b\.?)\s*([A-Za-z]?\d{1,4}[A-Za-z]?)|\s+(\d{1,4})(?=\s|$))?`;
+const NUMFIRST_RE=new RegExp(String.raw`^(\d{1,4}(?:\s?[A-Za-z](?![A-Za-z]))?)(?:\s*[-–]\s*\d{1,4}[A-Za-z]?)?`+BOX_RE+String.raw`\s*,?\s+(.*[A-Za-zÀ-ÿ]{2,}.*)$`,'i');
+const NUMLAST_RE=new RegExp(String.raw`^(.*?[A-Za-zÀ-ÿ]{2,}.*?)[\s,]+(\d{1,4}(?:\s?[A-Za-z](?![A-Za-z]))?)(?:\s*[-–]\s*\d{1,4}[A-Za-z]?)?`+BOX_RE+String.raw`\s*$`,'i');
+function splitAddress(a){
+  let s=String(a||'').trim(),pc='',city='';
+  const m=s.match(/,?\s*\b([1-9]\d{3})\s+([^,\d]+)$/);
+  if(m){pc=m[1];city=m[2].trim();s=s.slice(0,m.index).trim()}
+  s=s.replace(/[,\s]+$/,'');
+  let num='',box='',street=s,r;
+  if((r=s.match(NUMFIRST_RE))){num=r[1].replace(/\s/g,'');box=r[2]||r[3]||'';street=r[4]}
+  else if((r=s.match(NUMLAST_RE))){street=r[1];num=r[2].replace(/\s/g,'');box=r[3]||r[4]||''}
+  return {street:street.replace(/[,\s]+$/,'').trim(),num,box,pc,city};
+}
+function geoQuery(a){const s=splitAddress(a);return (s.street+(s.num?' '+s.num:''))+(s.pc?', '+s.pc+' '+s.city:'')}
+function addrKey(a){const s=splitAddress(a);return norm(s.street+' '+s.num)}
+/* clé d'un colis : rue + n° d'immeuble retenu (après détection immeuble/boîte) */
+function entryKey(e){const s=splitAddress(e.address);return norm(s.street+' '+(e.bldg||s.num))||norm(e.address)}
+function entryBox(e){return e.bldg?(e.boxNo||''):splitAddress(e.address).box}
+
+/* ---------- Une page du PDA : code tournée (D27) / adresse / nom / nombre de colis en bas ---------- */
+const TOUR_RE=/^\s*\[?([A-Z]{1,2})\s?[-.]?\s?([0-9OoZSIl]{1,4})\]?(?=\s|$|[^A-Za-z0-9])\s*(.*)$/;
+function cleanLines(text){return String(text||'').split(/\r?\n/).map(l=>l.replace(/[|_~»«©®“”"]/g,' ').replace(/\s+/g,' ').trim()).filter(l=>l.length>=2||/^\d$/.test(l))}
+function isJunk(l){return /\b\d{1,2}[:h]\d{2}\b/.test(l)||/%/.test(l)||/^(4G|5G|LTE|wifi)$/i.test(l)}
+function parsePage(text){
+  let lines=cleanLines(text).filter(l=>!isJunk(l));
+  if(!lines.length)return null;
+  // code de tournée (ex. D27) : en haut à gauche
+  let pda=null;
+  for(let i=0;i<Math.min(lines.length,4);i++){
+    const m=lines[i].match(TOUR_RE);
+    if(m&&/\d/.test(m[2])&&!STREET_WORD_RE.test(m[1]+' ')){
+      let letters=m[1].toUpperCase(),dg=m[2];
+      if(letters.length===2&&/[OZSI]/.test(letters[1])){dg=letters[1]+dg;letters=letters[0]} // « DZ9 » = « D29 »
+      pda=letters+dg.replace(/[Oo]/g,'0').replace(/Z/g,'2').replace(/S/g,'5').replace(/[Il]/g,'1');
+      lines[i]=m[3].trim();break;
+    }
+  }
+  lines=lines.filter(Boolean);
+  // adresse
+  let ai=lines.findIndex(l=>STREET_WORD_RE.test(l)&&/\d/.test(l));
+  if(ai<0)ai=lines.findIndex(l=>/^\d{1,4}\s?[A-Za-z]?([-–\/]\s?\d{1,4})?\s+[A-Za-zÀ-ÿ]{3,}/.test(l));
+  if(ai<0)ai=lines.findIndex(l=>STREET_WORD_RE.test(l));
+  if(ai<0)return null;
+  let address=lines[ai].replace(/[,\s]+$/,'');
+  // code postal éventuel sur une autre ligne
+  for(let i=0;i<lines.length;i++){if(i===ai)continue;const m=lines[i].match(PC_RE);if(m&&!PC_RE.test(address)){address+=', '+m[1]+' '+m[2].replace(/[\s\.\-]+$/,'').trim();lines[i]='';break}}
+  // nombre de colis : dernier nombre seul (tout en bas)
+  let parcels=1;
+  for(let i=lines.length-1;i>ai;i--){
+    const m=lines[i].match(/^\s*(?:x\s?)?(\d{1,2})\s*(?:colis|pakket(?:ten)?|pcs|stuks)?\s*$/i);
+    if(m&&+m[1]>0){parcels=+m[1];lines[i]='';break}
+  }
+  // nom : 1re ligne « texte » après l'adresse, sinon avant
+  const okName=l=>l&&/[A-Za-zÀ-ÿ]{2,}/.test(l)&&digits(l)<=2&&!STREET_WORD_RE.test(l);
+  let name=lines.slice(ai+1).find(okName)||lines.slice(0,ai).reverse().find(okName)||'';
+  name=name.replace(/(\p{L})[._,]+\s*(?=\p{L})/gu,'$1 ').replace(/\s+/g,' ').trim();
+  return {pda,name,address,parcels};
+}
+/* Texte collé : listes avec codes postaux, ou pages séparées par une ligne vide */
+function parseAuto(text){
+  const blocks=String(text||'').split(/\n\s*\n/).filter(b=>b.trim());
+  const hasPc=cleanLines(text).some(l=>PC_RE.test(l)&&!STREET_WORD_RE.test(l.replace(PC_RE,'')));
+  if(hasPc){const r=parseText(text);if(r.length)return r}
+  return blocks.map(parsePage).filter(Boolean);
+}
+function mergeParsed(list){
+  let added=0,dup=0;
+  for(const p of list){
+    const d=state.entries.some(e=>e.pda===p.pda&&norm(e.name)===norm(p.name)&&addrKey(e.address)===addrKey(p.address)&&(+e.parcels||1)===(p.parcels||1));
+    if(d)dup++;
+    state.entries.push({id:uid(),pda:p.pda==null?null:String(p.pda),name:p.name,address:p.address,parcels:p.parcels||1,lat:null,lon:null,geo:null,dup:d});added++;
+  }
+  persist();renderEntries();
+  return {added,dup};
+}
+
+/* ================= Liste des colis ================= */
+function geoBadge(e){
+  if(e.geo==='ok')return '<span class="badge b-ok">📍 OK</span>';
+  if(e.geo==='manual')return '<span class="badge b-ok">📍 corrigé</span>';
+  if(e.geo==='approx')return '<span class="badge b-warn">≈ rue</span>';
+  if(e.geo==='fail')return '<span class="badge b-bad">introuvable</span>';
+  return '<span class="badge b-none">non localisé</span>';
+}
+/* ligne « Immeuble 12 · boîte 3 ⇄ » quand l'adresse contient deux numéros */
+function bldgLine(e){
+  const s=splitAddress(e.address);if(!s.box)return '';
+  const b=e.bldg||(e.swap?s.box:s.num),x=e.bldg?e.boxNo:(e.swap?s.num:s.box);
+  return `<div class="row mt" style="font-size:14px"><span>🏢 Immeuble <b>${esc(b)}</b> · boîte <b>${esc(x)}</b></span>
+    ${e.ambig?'<span class="badge b-warn">n° à vérifier</span>':''}
+    <button class="btn" style="padding:4px 10px" data-act="swap">⇄ inverser</button></div>`;
+}
+function cmpPda(a,b){if(a.pda==null&&b.pda==null)return 0;if(a.pda==null)return 1;if(b.pda==null)return -1;return String(a.pda).localeCompare(String(b.pda),'fr',{numeric:true})}
+function sortedEntries(){return state.entries.slice().sort(cmpPda)}
+function renderEntries(){
+  const list=sortedEntries();
+  const parcels=list.reduce((s,e)=>s+(+e.parcels||1),0);
+  $('#entryCount').textContent=list.length?`(${list.length} lignes · ${parcels} colis)`:'';
+  $('#entries').innerHTML=list.length?list.map(e=>`
+    <div class="entry card" data-id="${e.id}" style="margin-bottom:8px">
+      <div class="top">
+        <div><label>N° tour</label><input data-f="pda" autocapitalize="characters" value="${esc(e.pda==null?'':e.pda)}"></div>
+        <div><label>Colis</label><input type="number" inputmode="numeric" min="1" data-f="parcels" value="${e.parcels||1}"></div>
+        <div>${geoBadge(e)}${e.dup?' <span class="badge b-warn" title="Même page déjà scannée ? Supprime-la si c’est la même photo.">doublon ?</span>':''}</div>
+        <button class="iconbtn" data-act="del" title="Supprimer">🗑️</button>
+      </div>
+      <div class="fields">
+        <input data-f="name" placeholder="Nom du client" value="${esc(e.name)}">
+        <input data-f="address" placeholder="7-9 Rue de Courtrai (code postal facultatif)" value="${esc(e.address)}">
+      </div>${bldgLine(e)}
+    </div>`).join(''):'<p class="muted">Aucun colis pour l’instant.</p>';
+  $('#learnCount').textContent=Object.keys(learned).length;
+  updateHeader();
+}
+$('#entries').addEventListener('change',e=>{
+  const card=e.target.closest('.entry');if(!card)return;
+  const ent=state.entries.find(x=>x.id===card.dataset.id);if(!ent)return;
+  const f=e.target.dataset.f,v=e.target.value;
+  if(f==='pda')ent.pda=v.trim()===''?null:v.trim().toUpperCase();
+  else if(f==='parcels')ent.parcels=Math.max(1,+v||1);
+  else if(f==='name')ent.name=v.trim();
+  else if(f==='address'){ent.address=v.trim();ent.lat=ent.lon=null;ent.geo=null;ent.bldg='';ent.boxNo='';ent.ambig=false;delete ent.swap}
+  ent.dup=false;
+  persist();
+  if(f==='address'||f==='pda')renderEntries();else updateHeader();
+});
+$('#entries').addEventListener('click',async e=>{
+  const act=e.target.dataset.act;if(!act)return;
+  const id=e.target.closest('.entry').dataset.id,ent=state.entries.find(x=>x.id===id);if(!ent)return;
+  if(act==='del'){state.entries=state.entries.filter(x=>x.id!==id);persist();renderEntries();return}
+  if(act==='swap'){
+    const s=splitAddress(ent.address);
+    const swappedNow=ent.bldg?ent.bldg!==s.num:!!ent.swap;
+    ent.swap=!swappedNow;ent.lat=ent.lon=null;ent.geo=null;ent.bldg='';ent.boxNo='';ent.ambig=false;
+    e.target.disabled=true;e.target.textContent='…';
+    await geocodeEntry(ent);persist();renderEntries();
+    toast('Immeuble / boîte inversés ✔');
+  }
+});
+
+/* ================= Géocodage (gratuit) ================= */
+// zones de livraison : [ouest, sud, est, nord]
+const ZONES={
+  bxl:{label:'Bruxelles',box:[4.23,50.76,4.50,50.92],center:{lat:50.846,lon:4.352}},
+  leu:{label:'Louvain',box:[4.60,50.82,4.80,50.93],center:{lat:50.879,lon:4.701}},
+  both:{label:'Bruxelles + Louvain',box:[4.20,50.74,4.82,50.95],center:{lat:50.86,lon:4.52}}
+};
+const zone=()=>{const c=communeParts();return c?(c.pc[0]==='3'?ZONES.leu:ZONES.bxl):ZONES.both};
+let lastNom=0;
+async function nominatim(q,bounded){
+  const wait=Math.max(0,1100-(Date.now()-lastNom));if(wait)await sleep(wait);lastNom=Date.now();
+  const z=zone(),b=z.box;
+  let url='https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=be&q='+encodeURIComponent(q)+`&viewbox=${b[0]},${b[3]},${b[2]},${b[1]}`;
+  if(bounded)url+='&bounded=1';
+  const r=await fetch(url,{headers:{'Accept-Language':'fr,nl'}});
+  if(!r.ok)throw new Error('nominatim '+r.status);
+  const j=await r.json();if(!j.length)return null;
+  // plusieurs résultats (même nom de rue dans 2 communes) : le plus proche du dépôt / de la zone
+  const ref=state.depot||z.center;
+  j.sort((x,y)=>haversine(ref,{lat:+x.lat,lon:+x.lon})-haversine(ref,{lat:+y.lat,lon:+y.lon}));
+  const best=j.find(x=>x.address&&x.address.house_number)||j[0];
+  return {lat:+best.lat,lon:+best.lon,exact:!!(best.address&&best.address.house_number)};
+}
+async function vlaanderen(q){ // registre officiel des adresses flamandes (Louvain, etc.)
+  const r=await fetch('https://geo.api.vlaanderen.be/geolocation/v4/Location?c=1&q='+encodeURIComponent(q));
+  if(!r.ok)throw new Error('vl '+r.status);
+  const j=await r.json();const L=j.LocationResult&&j.LocationResult[0];
+  return L&&L.Location?{lat:+L.Location.Lat_WGS84,lon:+L.Location.Lon_WGS84,exact:!/straat|street|gemeente|municip/i.test(L.LocationType||'')}:null;
+}
+function communeParts(){const m=String(state.commune||'').match(/^(\d{4})\s+(.+)$/);return m?{pc:m[1],city:m[2]}:null}
+/* cherche « rue + numéro » ; exact=false si seul la rue a été trouvée */
+async function geoTry(street,num,pc,city){
+  const base=street+(num?' '+num:''),q=base+(pc?', '+pc+' '+city:'');
+  const p=+(pc||0),flem=(p>=1500&&p<=3999)||(p>=8000&&p<=9999);
+  let r=null;
+  if(flem){try{r=await vlaanderen(q)}catch(e){}if(r&&r.exact)return r}
+  let r2=null;try{r2=await nominatim(q,!pc)}catch(e){}
+  if(r2&&(r2.exact||!r))r=r2;
+  if((!r||!r.exact)&&!pc){try{const r3=await vlaanderen(base+', Leuven');if(r3&&r3.exact)r=r3}catch(e){}}
+  return r;
+}
+/* swap : undefined = automatique, true = 2e nombre = immeuble, false = 1er nombre = immeuble */
+async function geocode(addr,isDepot,swap){
+  if(isDepot){try{const r=await nominatim(addr,false);if(r)return r}catch(e){}try{return await vlaanderen(addr)}catch(e){return null}}
+  const s=splitAddress(addr);if(!s.street)return null;
+  const c=communeParts();if(!s.pc&&c){s.pc=c.pc;s.city=c.city}
+  let A=s.num,B=s.box;
+  const twoNums=/^\d{1,4}[A-Za-z]?$/.test(B||'');
+  if(swap===true&&B){[A,B]=[B,A]}
+  const kA=norm(s.street+' '+A),kB=norm(s.street+' '+B);
+  if(learned[kA])return {lat:learned[kA].lat,lon:learned[kA].lon,q:'manual',bldg:A,boxNo:B};
+  if(swap===undefined&&twoNums&&learned[kB])return {lat:learned[kB].lat,lon:learned[kB].lon,q:'manual',bldg:B,boxNo:A};
+  const ck=[kA,B||'',s.pc||'zone',swap===undefined?'a':swap?'s':'n'].join('|');
+  if(geoCache[ck])return geoCache[ck];
+  const r=await geoTry(s.street,A,s.pc,s.city);
+  let res=null;
+  // immeuble et boîte peut-être inversés : on teste l'autre numéro
+  if(swap===undefined&&twoNums){
+    const r2=await geoTry(s.street,B,s.pc,s.city);
+    const ok1=!!(r&&r.exact),ok2=!!(r2&&r2.exact);
+    if(!ok1&&ok2)res={lat:r2.lat,lon:r2.lon,q:'ok',bldg:B,boxNo:A};
+    else if(ok1&&ok2&&haversine(r,r2)>30)res={lat:r.lat,lon:r.lon,q:'ok',bldg:A,boxNo:B,ambig:true};
+  }
+  if(!res&&r)res={lat:r.lat,lon:r.lon,q:r.exact?'ok':'approx',bldg:A,boxNo:B};
+  if(!res){ // dernier recours : la rue seule (position approximative)
+    let r3=null;try{r3=await nominatim(s.street+(s.pc?', '+s.pc+' '+s.city:''),!s.pc)}catch(e){}
+    if(r3)res={lat:r3.lat,lon:r3.lon,q:'approx',bldg:A,boxNo:B};
+  }
+  if(res&&res.q==='ok'){geoCache[ck]=res;save(LS_GEO,geoCache)}
+  return res;
+}
+async function geocodeEntry(e){
+  const r=await geocode(e.address,false,e.swap);
+  if(r){e.lat=r.lat;e.lon=r.lon;e.geo=r.q;e.bldg=r.bldg||'';e.boxNo=r.boxNo||'';e.ambig=!!r.ambig}
+  else{e.geo='fail';e.ambig=false}
+}
+$('#geoBtn').onclick=()=>geocodeAll();
+async function geocodeAll(){
+  const todo=state.entries.filter(e=>e.address&&e.lat==null);
+  if(!todo.length){$('#geoStatus').textContent='Toutes les adresses sont déjà localisées.';return true}
+  $('#geoBtn').disabled=true;
+  for(let i=0;i<todo.length;i++){
+    $('#geoStatus').textContent=`Localisation ${i+1}/${todo.length} : ${todo[i].address}`;prog('#geoProg',i/todo.length);
+    await geocodeEntry(todo[i]);
+    persist();
+  }
+  prog('#geoProg',null);$('#geoBtn').disabled=false;
+  const fails=state.entries.filter(e=>e.geo==='fail').length,approx=state.entries.filter(e=>e.geo==='approx').length,amb=state.entries.filter(e=>e.ambig).length;
+  $('#geoStatus').innerHTML=fails||approx||amb?`⚠️ ${fails} introuvable(s), ${approx} approximative(s), ${amb} immeuble/boîte à vérifier. Corrige l’adresse, utilise ⇄, ou glisse le point sur la carte.`:'✅ Toutes les adresses sont localisées.';
+  renderEntries();
+  return fails===0;
+}
+
+/* ================= Stops (regroupement par adresse) ================= */
+function buildStops(){
+  const old=new Map(state.stops.map(s=>[s.key,s]));const map=new Map();
+  for(const e of state.entries){
+    if(e.lat==null)continue;const k=entryKey(e);
+    if(!map.has(k)){const o=old.get(k);map.set(k,{key:k,address:e.address,lat:e.lat,lon:e.lon,entryIds:[],status:o?o.status:'todo'})}
+    map.get(k).entryIds.push(e.id);
+  }
+  return [...map.values()];
+}
+const entryById=id=>state.entries.find(e=>e.id===id);
+function stopEntries(s){return s.entryIds.map(entryById).filter(Boolean).sort(cmpPda)}
+function uniqPdas(ents){return [...new Set(ents.map(e=>e.pda).filter(x=>x!=null&&x!==''))]}
+/* clients d'un stop : les pages d'un même client sont regroupées et leurs colis additionnés */
+function clientsOfStop(s){
+  const m=new Map();
+  for(const e of stopEntries(s)){
+    const k=norm(e.name)||e.id;
+    if(!m.has(k))m.set(k,{name:e.name,parts:[],boxes:[]});
+    const c=m.get(k);c.parts.push(+e.parcels||1);
+    const b=entryBox(e);if(b&&!c.boxes.includes(b))c.boxes.push(b);
+  }
+  return [...m.values()];
+}
+function stopParcels(s){return stopEntries(s).reduce((t,e)=>t+(+e.parcels||1),0)}
+
+/* ================= Matrice des temps (OSRM, gratuit, sens interdits inclus) ================= */
+async function fetchJson(url,tries=3){
+  for(let t=0;t<tries;t++){try{const r=await fetch(url);if(r.ok)return await r.json();if(r.status!==429&&r.status<500)throw new Error('HTTP '+r.status)}catch(e){if(t===tries-1)throw e}await sleep(1500*(t+1))}
+  throw new Error('échec réseau');
+}
+async function buildMatrix(pts,progId){
+  const n=pts.length,dur=new Float64Array(n*n).fill(NaN),dist=new Float64Array(n*n).fill(NaN);
+  const G=45,groups=[];for(let i=0;i<n;i+=G){const g=[];for(let k=i;k<Math.min(n,i+G);k++)g.push(k);groups.push(g)}
+  let done=0,failed=0;const totalReq=groups.length*groups.length;
+  for(let a=0;a<groups.length;a++)for(let b=0;b<groups.length;b++){
+    const ga=groups[a],gb=groups[b],idx=a===b?ga:ga.concat(gb);
+    const coords=idx.map(p=>pts[p].lon.toFixed(6)+','+pts[p].lat.toFixed(6)).join(';');
+    const src=ga.map((_,k)=>k).join(';'),dst=(a===b?ga.map((_,k)=>k):gb.map((_,k)=>ga.length+k)).join(';');
+    const url=`https://router.project-osrm.org/table/v1/driving/${coords}?sources=${src}&destinations=${dst}&annotations=duration,distance`;
+    try{
+      const j=await fetchJson(url);
+      if(j.code!=='Ok')throw new Error(j.code);
+      ga.forEach((pi,ai)=>gb.forEach((pj,bi)=>{const du=j.durations[ai][bi],di=j.distances?j.distances[ai][bi]:null;if(du!=null)dur[pi*n+pj]=du;if(di!=null)dist[pi*n+pj]=di}));
+    }catch(e){failed++}
+    done++;prog(progId,done/totalReq);
+  }
+  let approx=failed>0;
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+    if(i===j){dur[i*n+j]=0;dist[i*n+j]=0;continue}
+    if(isNaN(dur[i*n+j])){const m=haversine(pts[i],pts[j])*1.35;dist[i*n+j]=m;dur[i*n+j]=m/(20/3.6)+30;approx=true}
+    if(isNaN(dist[i*n+j]))dist[i*n+j]=haversine(pts[i],pts[j])*1.35;
+  }
+  return {dur,dist,approx};
+}
+
+/* ================= Optimiseur (problème du voyageur de commerce asymétrique) =================
+   Noeud 0 = départ, noeuds 1..m = stops, noeud N = arrivée (dépôt ou fin libre).
+   Plus proche voisin -> 2-opt + Or-opt -> recherche locale itérée (double-bridge). */
+function solveTour(dur,n,returnToStart,timeMs=2500){
+  const N=n,M=n+1,D=new Float64Array(M*M);
+  for(let i=0;i<n;i++){for(let j=0;j<n;j++)D[i*M+j]=dur[i*n+j];D[i*M+N]=returnToStart?dur[i*n]:0}
+  const d=(a,b)=>D[a*M+b];
+  const m=n-1;if(m<=0)return [];
+  const cost=s=>{let c=0;for(let k=0;k<s.length-1;k++)c+=d(s[k],s[k+1]);return c};
+  // plus proche voisin
+  const used=new Uint8Array(n);used[0]=1;let cur=0;const nn=[];
+  for(let k=0;k<m;k++){let best=-1,bv=Infinity;for(let j=1;j<n;j++)if(!used[j]&&d(cur,j)<bv){bv=d(cur,j);best=j}used[best]=1;nn.push(best);cur=best}
+  function twoOpt(s){
+    const L=s.length,F=new Float64Array(L),B=new Float64Array(L);let improved=false;
+    const pref=()=>{F[0]=0;B[0]=0;for(let k=0;k<L-1;k++){F[k+1]=F[k]+d(s[k],s[k+1]);B[k+1]=B[k]+d(s[k+1],s[k])}};
+    pref();
+    for(let i=1;i<L-2;i++)for(let j=i+1;j<L-1;j++){
+      const a=s[i-1],si=s[i],sj=s[j],b=s[j+1];
+      const oldC=d(a,si)+(F[j]-F[i])+d(sj,b),newC=d(a,sj)+(B[j]-B[i])+d(si,b);
+      if(newC<oldC-1e-6){for(let x=i,y=j;x<y;x++,y--){const t=s[x];s[x]=s[y];s[y]=t}pref();improved=true}
+    }
+    return improved;
+  }
+  function orOpt(s){
+    const L=s.length;let improved=false;
+    for(let len=1;len<=3;len++)for(let i=1;i+len-1<=L-2;i++){
+      const e=i+len-1,p=s[i-1],q=s[e+1],a=s[i],z=s[e];
+      const rem=d(p,a)+d(z,q)-d(p,q);
+      for(let k=0;k<L-1;k++){
+        if(k>=i-1&&k<=e)continue;
+        const x=s[k],y=s[k+1],add=d(x,a)+d(z,y)-d(x,y);
+        if(add-rem<-1e-6){const seg=s.splice(i,len);const at=k<i?k+1:k+1-len;s.splice(at,0,...seg);improved=true;break}
+      }
+    }
+    return improved;
+  }
+  function local(s){let guard=0;while(guard++<200){const a=twoOpt(s),b=orOpt(s);if(!a&&!b)break}return s}
+  let best=local([0,...nn,N]),bestC=cost(best);
+  const t0=performance.now();
+  if(m>=8){
+    while(performance.now()-t0<timeMs){
+      const inner=best.slice(1,-1),len=inner.length;
+      const cuts=[];while(cuts.length<3){const c=1+Math.floor(Math.random()*(len-1));if(!cuts.includes(c))cuts.push(c)}
+      cuts.sort((x,y)=>x-y);const [p1,p2,p3]=cuts;
+      const ni=inner.slice(0,p1).concat(inner.slice(p2,p3),inner.slice(p1,p2),inner.slice(p3));
+      const s=local([0,...ni,N]),c=cost(s);
+      if(c<bestC-1e-6){best=s;bestC=c}
+    }
+  }
+  return best.slice(1,-1);
+}
+
+async function runOptimization(fromGps,progId,statusEl){
+  const status=t=>statusEl.innerHTML=t;
+  const all=buildStops();
+  const missing=state.entries.filter(e=>e.lat==null);
+  if(missing.length&&!fromGps){
+    status('Localisation des adresses…');
+    await geocodeAll();
+    const still=state.entries.filter(e=>e.lat==null).length;
+    if(still&&!confirm(`${still} adresse(s) introuvable(s) seront ignorées. Continuer ?`))return;
+  }
+  const stopsAll=buildStops();
+  if(!stopsAll.length){status('❌ Aucun colis localisé.');return}
+  let fixed=[],toOpt=stopsAll;
+  if(fromGps){fixed=state.stops.filter(s=>s.status!=='todo').map(s=>stopsAll.find(x=>x.key===s.key)||s);toOpt=stopsAll.filter(s=>s.status==='todo')}
+  let start=null;
+  if(fromGps||!state.depot){status('Lecture du GPS…');try{start=await getGps()}catch(e){if(state.depot)start=state.depot;else{status('❌ Pas de dépôt et GPS indisponible. Indique le dépôt en haut.');return}}}
+  else start=state.depot;
+  if(!toOpt.length){status('Plus aucun stop à faire.');return}
+  const pts=[start,...toOpt];
+  status(`Calcul des temps de trajet entre ${pts.length} points (sens interdits inclus)…`);prog(progId,0);
+  const {dur,dist,approx}=await buildMatrix(pts,progId);
+  status('Recherche du meilleur ordre…');await sleep(50);
+  // retour au dépôt : seulement si on part du dépôt (en réoptimisation depuis le GPS, fin libre)
+  const ret=!!(state.returnToDepot&&state.depot&&start===state.depot);
+  const n=pts.length;
+  const order=solveTour(dur,n,ret);
+  const ordered=order.map(i=>toOpt[i-1]);
+  // estimation
+  let tsec=0,tm=0,prev=0;
+  for(const i of order){tsec+=dur[prev*n+i];tm+=dist[prev*n+i];prev=i}
+  if(ret){tsec+=dur[prev*n];tm+=dist[prev*n]}
+  state.stops=[...fixed,...ordered];
+  state.current=state.stops.findIndex(s=>s.status==='todo');if(state.current<0)state.current=0;
+  state.summary={drive:tsec,km:tm/1000,approx,at:Date.now()};
+  persist();prog(progId,null);
+  status(`✅ ${ordered.length} stops ordonnés · conduite estimée ${fmtDur(tsec)} · ${(tm/1000).toFixed(1)} km`+(approx?'<br>⚠️ Serveur de trajets partiellement indisponible : certaines distances sont estimées à vol d’oiseau.':'')+'<br><span class="muted">Sans trafic temps réel : Waze gère les bouchons pendant la conduite.</span>');
+  renderEntries();
+  return true;
+}
+$('#optBtn').onclick=async()=>{$('#optBtn').disabled=true;try{const ok=await runOptimization(false,'#optProg',$('#optStatus'));if(ok)setTimeout(()=>showTab('tour'),900)}catch(e){$('#optStatus').textContent='❌ '+(e.message||e)}$('#optBtn').disabled=false;prog('#optProg',null)};
+$('#reoptBtn').onclick=async()=>{$('#reoptBtn').disabled=true;try{const ok=await runOptimization(true,'#reoptProg',$('#reoptStatus'));if(ok)renderTour()}catch(e){$('#reoptStatus').textContent='❌ '+(e.message||e)}$('#reoptBtn').disabled=false;prog('#reoptProg',null)};
+
+/* ================= Écran tournée ================= */
+function updateHeader(){
+  const st=state.stops;
+  if(st.length){const rem=st.filter(s=>s.status==='todo').length;$('#hdrInfo').textContent=`${rem}/${st.length} stops`}
+  else $('#hdrInfo').textContent=state.entries.length?`${state.entries.length} colis`:'';
+}
+function nextTodo(from){const st=state.stops;for(let k=1;k<=st.length;k++){const i=(from+k)%st.length;if(st[i].status==='todo')return i}return -1}
+function renderTour(){
+  const st=state.stops;updateHeader();
+  $('#tourEmpty').style.display=st.length?'none':'block';$('#tourBody').style.display=st.length?'block':'none';
+  if(!st.length)return;
+  if(state.current>=st.length)state.current=0;
+  const todo=st.filter(s=>s.status==='todo');
+  $('#remStops').textContent=todo.length;$('#remTotal').textContent=`/ ${st.length}`;
+  $('#remParcels').textContent=todo.reduce((t,s)=>t+stopParcels(s),0);
+  const s=st[state.current],ents=stopEntries(s);
+  $('#curOpt').textContent=state.current+1;
+  const pdas=uniqPdas(ents);
+  $('#curPda').textContent=pdas.length?pdas.join(', '):'–';
+  $('#curPda').style.fontSize=pdas.length>2?'20px':pdas.length>1?'26px':'';
+  const cl=clientsOfStop(s);
+  $('#curName').innerHTML=cl.map(c=>{const tot=c.parts.reduce((a,b)=>a+b,0);
+    return esc(c.name||'(sans nom)')+(c.boxes.length?c.boxes.map(b=>`<span class="box">boîte ${esc(b)}</span>`).join(''):'')+
+      (cl.length>1||c.parts.length>1?` <span class="muted" style="font-size:15px;font-weight:500">${c.parts.length>1?c.parts.join(' + ')+' = ':''}${tot} colis</span>`:'')}).join('<br>');
+  const e0=ents[0],twoNum=e0&&e0.bldg&&splitAddress(e0.address).box;
+  $('#curAddr').textContent=s.address+(twoNum?`  →  immeuble n° ${e0.bldg}`:'');
+  const np=stopParcels(s);
+  $('#curParcels').textContent=`📦 ${np} colis`+(cl.length>1?` · ${cl.length} clients à cette adresse`:'');
+  $('#curStatus').innerHTML=s.status==='done'?'<span class="badge b-ok">✓ Livré</span>':s.status==='fail'?'<span class="badge b-bad">✗ Échec</span>':'';
+  $('#resetStopBtn').style.display=s.status==='todo'?'none':'block';
+  $('#wazeBtn').href=`https://waze.com/ul?ll=${s.lat},${s.lon}&navigate=yes`;
+  $('#gmapsBtn').href=`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}&travelmode=driving`;
+  const nx=nextTodo(state.current);
+  if(!todo.length)$('#nextInfo').innerHTML='🎉 <b>Tournée terminée !</b>';
+  else if(nx>=0&&nx!==state.current){$('#nextInfo').innerHTML=`Ensuite : <b>#${nx+1}</b> ${esc(clientsOfStop(st[nx]).map(c=>c.name).filter(Boolean).join(', '))} — ${esc(st[nx].address)}`}
+  else $('#nextInfo').textContent='';
+  $('#stopList').innerHTML=st.map((x,i)=>{const e=stopEntries(x),p=uniqPdas(e);
+    return `<div class="it ${i===state.current?'cur':''} ${x.status!=='todo'?'done':''}" data-i="${i}">
+      <div class="n">#${i+1}</div>
+      <div class="d"><div><b>${esc(clientsOfStop(x).map(c=>c.name||'(sans nom)').join(', '))}</b></div><div class="muted">${p.length?'PDA '+p.join(', ')+' · ':''}${stopParcels(x)} colis · ${esc(x.address)}</div></div>
+      <div class="st">${x.status==='done'?'✅':x.status==='fail'?'❌':''}</div></div>`}).join('');
+}
+$('#stopList').addEventListener('click',e=>{const it=e.target.closest('.it');if(!it)return;state.current=+it.dataset.i;persist();renderTour();window.scrollTo({top:0,behavior:'smooth'})});
+function mark(status){const s=state.stops[state.current];if(!s)return;s.status=status;const nx=nextTodo(state.current);if(nx>=0)state.current=nx;persist();renderTour();window.scrollTo({top:0,behavior:'smooth'})}
+$('#doneBtn').onclick=()=>mark('done');
+$('#failBtn').onclick=()=>mark('fail');
+$('#prevBtn').onclick=()=>{if(state.current>0){state.current--;persist();renderTour()}};
+$('#skipBtn').onclick=()=>{if(state.current<state.stops.length-1){state.current++;persist();renderTour()}};
+$('#resetStopBtn').onclick=()=>{const s=state.stops[state.current];if(s){s.status='todo';persist();renderTour()}};
+
+/* ================= Carte (Leaflet + OpenStreetMap) ================= */
+let map=null,layer=null;
+function renderMap(){
+  if(!window.L){$('#map').innerHTML='<p class="muted" style="padding:12px">Carte indisponible hors connexion.</p>';return}
+  if(!map){map=L.map('map');L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);layer=L.layerGroup().addTo(map);map.on('dragstart',()=>{meFollow=false;$('#meBtn').classList.remove('follow')})}
+  setTimeout(()=>map.invalidateSize(),50);
+  layer.clearLayers();
+  const stops=state.stops.length?state.stops:buildStops();const pts=[];
+  if(state.depot){const p=[state.depot.lat,state.depot.lon];pts.push(p);L.marker(p,{icon:L.divIcon({className:'',html:'<div class="pin depot">D</div>',iconSize:[28,28],iconAnchor:[14,14]})}).addTo(layer).bindPopup('Dépôt')}
+  const line=state.depot?[[state.depot.lat,state.depot.lon]]:[];
+  stops.forEach((s,i)=>{
+    const p=[s.lat,s.lon];pts.push(p);line.push(p);
+    const cls=i===state.current&&state.stops.length?'cur':s.status==='done'?'done':s.status==='fail'?'fail':'';
+    const mk=L.marker(p,{draggable:true,icon:L.divIcon({className:'',html:`<div class="pin ${cls}">${state.stops.length?i+1:'•'}</div>`,iconSize:[28,28],iconAnchor:[14,14]})}).addTo(layer);
+    const ents=stopEntries(s);
+    mk.bindPopup(`<b>${state.stops.length?'#'+(i+1)+' · ':''}${esc(clientsOfStop(s).map(c=>c.name).join(', '))}</b><br>${esc(uniqPdas(ents).join(', '))}<br>${esc(s.address)}<br>${stopParcels(s)} colis`);
+    mk.on('dragend',()=>{const ll=mk.getLatLng();s.lat=ll.lat;s.lon=ll.lng;learned[s.key]={lat:ll.lat,lon:ll.lng};save(LS_LEARN,learned);
+      ents.forEach(e=>{e.lat=ll.lat;e.lon=ll.lng;e.geo='manual'});
+      const st=state.stops.find(x=>x.key===s.key);if(st){st.lat=ll.lat;st.lon=ll.lng}
+      persist();renderEntries();toast('Position corrigée et mémorisée ✔')});
+  });
+  if(state.stops.length&&line.length>1)L.polyline(line,{color:'#1f6feb',weight:2,opacity:.6,dashArray:'4 6'}).addTo(layer);
+  if(pts.length)map.fitBounds(pts,{padding:[30,30],maxZoom:16});else map.setView([50.85,4.35],11);
+}
+
+/* ---------- Ma position en direct (curseur GPS) ---------- */
+let watchId=null,meMarker=null,meCircle=null,mePos=null,meFollow=false;
+function startWatch(){
+  if(watchId!=null)return;
+  if(!navigator.geolocation){$('#meInfo').textContent='GPS indisponible';return}
+  $('#meInfo').textContent='Recherche GPS…';
+  watchId=navigator.geolocation.watchPosition(updateMe,err=>{$('#meInfo').textContent='GPS : '+(err.code===1?'accès refusé':'signal indisponible')},{enableHighAccuracy:true,maximumAge:3000,timeout:20000});
+}
+function stopWatch(){if(watchId!=null){navigator.geolocation.clearWatch(watchId);watchId=null}}
+function updateMe(p){
+  if(!map)return;
+  const ll=[p.coords.latitude,p.coords.longitude],acc=p.coords.accuracy||0,hd=p.coords.heading,sp=p.coords.speed;
+  mePos={lat:ll[0],lon:ll[1]};
+  if(!meMarker){
+    meMarker=L.marker(ll,{interactive:false,zIndexOffset:1000,icon:L.divIcon({className:'',html:'<div class="me"><div class="me-pulse"></div><div class="me-arrow"></div><div class="me-dot"></div></div>',iconSize:[44,44],iconAnchor:[22,22]})}).addTo(map);
+    meCircle=L.circle(ll,{radius:acc,color:'#1a73e8',weight:1,fillOpacity:.08,interactive:false}).addTo(map);
+  }else{meMarker.setLatLng(ll);meCircle.setLatLng(ll).setRadius(acc)}
+  // flèche de direction quand on roule
+  const el=meMarker.getElement(),arrow=el&&el.querySelector('.me-arrow');
+  if(arrow){if(hd!=null&&!isNaN(hd)&&sp!=null&&sp>1){arrow.style.display='block';arrow.style.transform=`rotate(${hd}deg)`}else arrow.style.display='none'}
+  $('#meInfo').textContent=`📍 précision ± ${Math.round(acc)} m`+(sp!=null&&sp>0.5?` · ${Math.round(sp*3.6)} km/h`:'');
+  if(meFollow)map.panTo(ll,{animate:true});
+}
+$('#meBtn').onclick=()=>{
+  startWatch();
+  if(!mePos){toast('Recherche de ta position…');meFollow=true;$('#meBtn').classList.add('follow');return}
+  meFollow=!meFollow;$('#meBtn').classList.toggle('follow',meFollow);
+  if(meFollow)map.setView([mePos.lat,mePos.lon],Math.max(map.getZoom(),16));
+};
+document.addEventListener('visibilitychange',()=>{if(!$('#tab-map').classList.contains('active'))return;if(document.visibilityState==='hidden')stopWatch();else startWatch()});
+
+/* ================= Données ================= */
+$('#newTour').onclick=()=>{if(!confirm('Effacer tous les colis et la tournée ? (le dépôt et les positions corrigées sont gardés)'))return;state.entries=[];state.stops=[];state.current=0;state.summary=null;$('#rawText').value='';persist();renderEntries();renderTour();$('#optStatus').textContent='';$('#geoStatus').textContent='';$('#ocrStatus').textContent=''};
+$('#exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify({state,learned},null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='tournee-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
+$('#importInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const j=JSON.parse(await f.text());if(j.state)state=Object.assign({},DEFAULT_STATE,j.state);if(j.learned){learned=Object.assign(learned,j.learned);save(LS_LEARN,learned)}persist();renderAll();toast('Restauré ✔')}catch(err){toast('Fichier invalide')}e.target.value=''};
+$('#clearLearn').onclick=()=>{if(confirm('Oublier toutes les positions corrigées à la main ?')){learned={};save(LS_LEARN,learned);renderEntries()}};
+
+function renderAll(){renderDepot();renderEntries();renderTour()}
+renderAll();
+if(state.stops.length&&state.stops.some(s=>s.status==='todo'))showTab('tour');
+</script>
+</body>
+</html>
