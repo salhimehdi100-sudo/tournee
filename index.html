@@ -147,12 +147,37 @@ details[open] summary{margin-bottom:8px}
 #scanShot{width:100%;font-size:22px;padding:20px}
 .box{display:inline-block;background:var(--warn-bg);color:var(--warn);font-weight:800;border-radius:8px;padding:2px 8px;margin-left:6px;font-size:14px}
 .empty{text-align:center;padding:28px 16px}
-.empty .big{font-size:44px}
+.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.btn.big .i{width:22px;height:22px}
+.btn.ib{padding:11px}
+nav.tabs .i{width:22px;height:22px}
+.emptyico{width:72px;height:72px;margin:0 auto 6px;border-radius:24px;background:linear-gradient(140deg,var(--accent),var(--accent2));color:#fff;display:flex;align-items:center;justify-content:center}
+.emptyico .i{width:36px;height:36px}
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5 10 17 19 7"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+    <symbol id="i-nav" viewBox="0 0 24 24"><path d="M3 11 21 3l-8 18-2-8z"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></symbol>
+    <symbol id="i-truck" viewBox="0 0 24 24"><path d="M2 6h12v10H2zM14 9h4l3 3v4h-7"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></symbol>
+    <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></symbol>
+  </defs>
+</svg>
 <header>
-  <h1>🚚 Ma Tournée</h1>
+  <h1>Ma Tournée</h1>
   <span id="hdrInfo"></span>
 </header>
 
@@ -160,20 +185,20 @@ details[open] summary{margin-bottom:8px}
 <!-- ====== PRÉPARER ====== -->
 <section class="tab active" id="tab-prep">
   <div class="card" id="installCard" style="display:none">
-    <button class="btn primary" style="width:100%" id="installBtn">📲 Installer l'app</button>
-    <p class="muted" id="installHelp" style="display:none;margin:8px 0 0">Chrome : <b>⋮</b> → <b>Ajouter à l'écran d'accueil</b></p>
+    <button class="btn primary" style="width:100%" id="installBtn">Installer l'app</button>
+    <p class="muted" id="installHelp" style="display:none;margin:8px 0 0">Chrome : menu <b>⋮</b> puis <b>Ajouter à l'écran d'accueil</b></p>
   </div>
 
   <div class="card">
     <h2><span class="step">1</span>Départ</h2>
     <div class="row">
       <input id="depotInput" class="grow" placeholder="Adresse du dépôt">
-      <button class="btn" id="depotFind" title="Trouver">🔍</button>
-      <button class="btn" id="depotGps" title="Ma position">📍</button>
+      <button class="btn ib" id="depotFind" title="Trouver"><svg class="i"><use href="#i-search"/></svg></button>
+      <button class="btn ib" id="depotGps" title="Ma position"><svg class="i"><use href="#i-locate"/></svg></button>
     </div>
     <div id="depotInfo" class="muted mt"></div>
     <select id="communeSel" class="mt" style="display:block">
-      <option value="">📍 Commune : plusieurs</option>
+      <option value="">Commune : plusieurs</option>
       <optgroup label="Bruxelles">
         <option>1000 Bruxelles</option><option>1020 Laeken</option><option>1030 Schaerbeek</option><option>1040 Etterbeek</option>
         <option>1050 Ixelles</option><option>1060 Saint-Gilles</option><option>1070 Anderlecht</option><option>1080 Molenbeek-Saint-Jean</option>
@@ -191,19 +216,19 @@ details[open] summary{margin-bottom:8px}
 
   <div class="card">
     <h2><span class="step">2</span>Scanner le PDA</h2>
-    <button class="btn primary big" style="width:100%" id="scanBtn">📸 Scanner</button>
+    <button class="btn primary big" style="width:100%" id="scanBtn"><svg class="i"><use href="#i-camera"/></svg>Scanner</button>
     <div class="tools">
-      <label class="btn" style="cursor:pointer">📷 Photo
+      <label class="btn" style="cursor:pointer"><svg class="i"><use href="#i-camera"/></svg>Photo
         <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
       </label>
-      <label class="btn" style="cursor:pointer">🖼️ Galerie
+      <label class="btn" style="cursor:pointer"><svg class="i"><use href="#i-image"/></svg>Galerie
         <input type="file" id="galleryInput" accept="image/*" multiple style="display:none">
       </label>
     </div>
     <div class="progress" id="ocrProg"><div></div></div>
     <div id="ocrStatus" class="muted mt"></div>
     <details class="mt" style="display:block">
-      <summary>✏️ Saisie manuelle</summary>
+      <summary>Saisie manuelle</summary>
       <textarea id="rawText" placeholder="D27&#10;7-9 Rue de Courtrai&#10;Mehdi Solhi&#10;2"></textarea>
       <div class="row mt">
         <button class="btn grow" id="parseBtn">Lire le texte</button>
@@ -214,8 +239,8 @@ details[open] summary{margin-bottom:8px}
 
   <div class="card">
     <div class="row" style="justify-content:space-between">
-      <h2 style="margin:0">📦 Colis <span id="entryCount" class="muted" style="font-weight:600"></span></h2>
-      <button class="btn" id="geoBtn">📍 Localiser</button>
+      <h2 style="margin:0">Colis <span id="entryCount" class="muted" style="font-weight:600"></span></h2>
+      <button class="btn" id="geoBtn"><svg class="i"><use href="#i-pin"/></svg>Localiser</button>
     </div>
     <div class="progress" id="geoProg"><div></div></div>
     <div id="geoStatus" class="muted mt"></div>
@@ -224,30 +249,30 @@ details[open] summary{margin-bottom:8px}
 
   <div class="card">
     <h2><span class="step">3</span>C'est parti</h2>
-    <button class="btn primary big" style="width:100%" id="optBtn">⚡ Optimiser la tournée</button>
+    <button class="btn primary big" style="width:100%" id="optBtn"><svg class="i"><use href="#i-zap"/></svg>Optimiser la tournée</button>
     <div class="progress" id="optProg"><div></div></div>
     <div id="optStatus" class="muted mt"></div>
   </div>
 
   <details class="card">
-    <summary>⚙️ Plus</summary>
+    <summary>Plus</summary>
     <div class="tools">
-      <button class="btn" id="newTour">🗑️ Nouvelle</button>
-      <button class="btn" id="exportBtn">💾 Sauver</button>
-      <label class="btn" style="cursor:pointer;grid-column:1/-1">📂 Restaurer<input type="file" id="importInput" accept="application/json" style="display:none"></label>
+      <button class="btn" id="newTour">Nouvelle tournée</button>
+      <button class="btn" id="exportBtn">Sauvegarder</button>
+      <label class="btn" style="cursor:pointer;grid-column:1/-1">Restaurer<input type="file" id="importInput" accept="application/json" style="display:none"></label>
     </div>
-    <p class="muted">📷 Photos gardées : <b id="photoCount">0</b></p>
-    <p class="muted">📌 Positions corrigées : <b id="learnCount">0</b> <button class="iconbtn" id="clearLearn" title="Oublier">✖</button></p>
-    <p class="muted">🛣️ Rues apprises : <b id="streetCount">0</b> <button class="iconbtn" id="clearStreets" title="Oublier">✖</button></p>
+    <p class="muted">Photos gardées : <b id="photoCount">0</b></p>
+    <p class="muted">Positions corrigées : <b id="learnCount">0</b> <button class="iconbtn" id="clearLearn" title="Oublier">×</button></p>
+    <p class="muted">Rues apprises : <b id="streetCount">0</b> <button class="iconbtn" id="clearStreets" title="Oublier">×</button></p>
   </details>
 </section>
 
 <!-- ====== TOURNÉE ====== -->
 <section class="tab" id="tab-tour">
   <div id="tourEmpty" class="card empty">
-    <div class="big">🚀</div>
+    <div class="emptyico"><svg class="i"><use href="#i-truck"/></svg></div>
     <h2 style="justify-content:center">Prêt à démarrer ?</h2>
-    <p class="muted">Scanne le PDA puis ⚡ Optimiser.</p>
+    <p class="muted">Scanne le PDA puis optimise.</p>
   </div>
   <div id="tourBody" style="display:none">
     <div class="hero" id="curCard">
@@ -261,20 +286,20 @@ details[open] summary{margin-bottom:8px}
       <div class="addr" id="curAddr"></div>
       <div class="parcels" id="curParcels"></div>
       <div class="actions">
-        <button class="btn ok big full" id="doneBtn">✓ Livré</button>
-        <a class="btn waze big" id="wazeBtn" target="_blank" rel="noopener">🧭 Waze</a>
-        <a class="btn big" id="gmapsBtn" target="_blank" rel="noopener">🗺️ Maps</a>
-        <button class="btn" id="prevBtn">◀</button>
-        <div class="grid2"><button class="btn bad" id="failBtn">✗</button><button class="btn" id="skipBtn">▶</button></div>
+        <button class="btn ok big full" id="doneBtn"><svg class="i"><use href="#i-check"/></svg>Livré</button>
+        <a class="btn waze big" id="wazeBtn" target="_blank" rel="noopener"><svg class="i"><use href="#i-nav"/></svg>Waze</a>
+        <a class="btn big" id="gmapsBtn" target="_blank" rel="noopener"><svg class="i"><use href="#i-map"/></svg>Maps</a>
+        <button class="btn" id="prevBtn" title="Précédent"><svg class="i"><use href="#i-left"/></svg></button>
+        <div class="grid2"><button class="btn bad" id="failBtn" title="Échec"><svg class="i"><use href="#i-x"/></svg></button><button class="btn" id="skipBtn" title="Passer"><svg class="i"><use href="#i-right"/></svg></button></div>
       </div>
-      <button class="btn mt" id="resetStopBtn" style="width:100%;display:none">↺ À refaire</button>
+      <button class="btn mt" id="resetStopBtn" style="width:100%;display:none"><svg class="i"><use href="#i-refresh"/></svg>À refaire</button>
       <div id="nextInfo"></div>
     </div>
-    <button class="btn" style="width:100%;margin-bottom:14px" id="reoptBtn">⚡ Réoptimiser depuis ici</button>
+    <button class="btn" style="width:100%;margin-bottom:14px" id="reoptBtn"><svg class="i"><use href="#i-zap"/></svg>Réoptimiser depuis ici</button>
     <div class="progress" id="reoptProg" style="margin:-6px 0 14px"><div></div></div>
     <div id="reoptStatus" class="muted" style="margin:-6px 0 14px"></div>
     <div class="card">
-      <h2>📋 Tous les stops</h2>
+      <h2>Tous les stops</h2>
       <div class="stoplist" id="stopList"></div>
     </div>
   </div>
@@ -282,19 +307,19 @@ details[open] summary{margin-bottom:8px}
 
 <!-- ====== CARTE ====== -->
 <section class="tab" id="tab-map">
-  <p class="muted maphint">✋ Glisse un point pour corriger sa position</p>
+  <p class="muted maphint">Glisse un point pour corriger sa position</p>
   <div style="position:relative">
     <div id="map"></div>
-    <button class="btn" id="meBtn" title="Centrer sur ma position">◎</button>
+    <button class="btn ib" id="meBtn" title="Centrer sur ma position"><svg class="i"><use href="#i-locate"/></svg></button>
     <div id="meInfo" class="muted"></div>
   </div>
 </section>
 </main>
 
 <nav class="tabs">
-  <button data-tab="prep" class="active"><span>📋</span>Préparer</button>
-  <button data-tab="tour"><span>🚚</span>Tournée</button>
-  <button data-tab="map"><span>🗺️</span>Carte</button>
+  <button data-tab="prep" class="active"><svg class="i"><use href="#i-list"/></svg>Préparer</button>
+  <button data-tab="tour"><svg class="i"><use href="#i-truck"/></svg>Tournée</button>
+  <button data-tab="map"><svg class="i"><use href="#i-map"/></svg>Carte</button>
 </nav>
 <div id="toast"></div>
 <div id="scanner">
@@ -303,7 +328,7 @@ details[open] summary{margin-bottom:8px}
   <div class="scanTop"><span id="scanCount"></span><button class="btn" id="scanClose">Terminer</button></div>
   <div class="scanBottom">
     <div id="scanLast"></div>
-    <button class="btn primary big" id="scanShot">📸 Capturer</button>
+    <button class="btn primary big" id="scanShot"><svg class="i"><use href="#i-camera"/></svg>Capturer</button>
   </div>
 </div>
 
@@ -352,7 +377,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 function renderDepot(){
   $('#returnDepot').checked=!!state.returnToDepot;
   $('#communeSel').value=state.commune||'';
-  if(state.depot){$('#depotInput').value=state.depot.label||'';$('#depotInfo').innerHTML='✅ Dépôt trouvé'}
+  if(state.depot){$('#depotInput').value=state.depot.label||'';$('#depotInfo').innerHTML='Dépôt trouvé'}
   else $('#depotInfo').textContent='Sans dépôt : départ de ta position';
 }
 $('#depotFind').onclick=async()=>{
@@ -360,12 +385,12 @@ $('#depotFind').onclick=async()=>{
   $('#depotInfo').textContent='Recherche…';
   const r=await geocode(q,true);
   if(r){state.depot={label:q,lat:r.lat,lon:r.lon};persist();renderDepot()}
-  else $('#depotInfo').textContent='❌ Introuvable — essaie 📍';
+  else $('#depotInfo').textContent='Introuvable, essaie la position GPS';
 };
 $('#depotGps').onclick=async()=>{
   $('#depotInfo').textContent='Lecture du GPS…';
   try{const p=await getGps();state.depot={label:$('#depotInput').value.trim()||'Ma position',lat:p.lat,lon:p.lon};persist();renderDepot()}
-  catch(e){$('#depotInfo').textContent='❌ GPS indisponible ('+(e.message||e)+')'}
+  catch(e){$('#depotInfo').textContent='GPS indisponible ('+(e.message||e)+')'}
 };
 $('#returnDepot').onchange=e=>{state.returnToDepot=e.target.checked;persist()};
 $('#communeSel').onchange=e=>{state.commune=e.target.value;persist();
@@ -758,8 +783,8 @@ async function handlePhotos(files){
       const r=await ocrPage(files[i]);if(r.ok)added+=r.added;else fails++;
     }
     const toCheck=state.entries.filter(e=>Object.keys(entryIssues(e)).length).length;
-    $('#ocrStatus').innerHTML=`✅ ${added} adresse(s) ajoutée(s)`+(fails?`, <b>${fails} illisible(s)</b> (ouvre « Texte lu » ou ajoute à la main)`:'')+(toCheck?`, <b>${toCheck} à vérifier (en orange)</b>`:'')+`. <b>Vérifie la liste ci-dessous.</b>`;
-  }catch(e){$('#ocrStatus').textContent='❌ Erreur de lecture : '+(e.message||e)+' (connexion internet nécessaire la 1re fois)'}
+    $('#ocrStatus').innerHTML=`${added} adresse(s) ajoutée(s)`+(fails?`, <b>${fails} illisible(s)</b> (ouvre « Texte lu » ou ajoute à la main)`:'')+(toCheck?`, <b>${toCheck} à vérifier (en orange)</b>`:'')+`. <b>Vérifie la liste ci-dessous.</b>`;
+  }catch(e){$('#ocrStatus').textContent='Erreur de lecture : '+(e.message||e)+' (connexion internet nécessaire la 1re fois)'}
   prog('#ocrProg',null);
 }
 $('#photoInput').onchange=e=>{handlePhotos([...e.target.files]);e.target.value=''};
@@ -783,7 +808,7 @@ function closeScanner(){
   $('#scanner').style.display='none';
   if(scanQueue.length||scanBusy)$('#ocrStatus').textContent='Lecture des dernières captures en cours…';
 }
-function updateScanInfo(){$('#scanCount').textContent=`📸 ${scanStats.shot} · ✅ ${scanStats.ok}`+(scanStats.fail?` · ⚠️ ${scanStats.fail}`:'')+(scanQueue.length||scanBusy?` · ⏳ ${scanQueue.length+(scanBusy?1:0)}`:'')}
+function updateScanInfo(){$('#scanCount').textContent=`${scanStats.shot} photo(s) · ${scanStats.ok} lue(s)`+(scanStats.fail?` · ${scanStats.fail} illisible(s)`:'')+(scanQueue.length||scanBusy?` · ${scanQueue.length+(scanBusy?1:0)} en cours`:'')}
 function captureFrame(){
   const v=$('#scanVideo');if(!v.videoWidth)return;
   const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
@@ -797,13 +822,13 @@ async function processScanQueue(){
   while(scanQueue.length){
     const c=scanQueue.shift();updateScanInfo();
     try{const r=await ocrPage(c);
-      if(r.ok){scanStats.ok+=r.added;$('#scanLast').textContent='✅ '+pageSummary(r)}
-      else{scanStats.fail++;$('#scanLast').textContent='⚠️ Page illisible — recapture-la (plus près, sans reflet).'}
-    }catch(e){scanStats.fail++;$('#scanLast').textContent='❌ '+(e.message||e)}
+      if(r.ok){scanStats.ok+=r.added;$('#scanLast').textContent=''+pageSummary(r)}
+      else{scanStats.fail++;$('#scanLast').textContent='Page illisible — recapture-la (plus près, sans reflet).'}
+    }catch(e){scanStats.fail++;$('#scanLast').textContent=''+(e.message||e)}
     updateScanInfo();
   }
   scanBusy=false;updateScanInfo();
-  if(!scanStream)$('#ocrStatus').innerHTML=`✅ ${scanStats.ok} page(s) lue(s)`+(scanStats.fail?`, <b>${scanStats.fail} illisible(s)</b>`:'')+'. <b>Vérifie la liste ci-dessous.</b>';
+  if(!scanStream)$('#ocrStatus').innerHTML=`${scanStats.ok} page(s) lue(s)`+(scanStats.fail?`, <b>${scanStats.fail} illisible(s)</b>`:'')+'. <b>Vérifie la liste ci-dessous.</b>';
 }
 $('#scanBtn').onclick=openScanner;
 $('#scanShot').onclick=captureFrame;
@@ -1132,8 +1157,8 @@ function mergeParsed(list){
 
 /* ================= Liste des colis ================= */
 function geoBadge(e){
-  if(e.geo==='ok')return '<span class="badge b-ok">📍 OK</span>';
-  if(e.geo==='manual')return '<span class="badge b-ok">📍 corrigé</span>';
+  if(e.geo==='ok')return '<span class="badge b-ok">OK</span>';
+  if(e.geo==='manual')return '<span class="badge b-ok">corrigé</span>';
   if(e.geo==='approx')return '<span class="badge b-warn">≈ à vérifier</span>';
   if(e.geo==='fail')return '<span class="badge b-bad">introuvable</span>';
   return '<span class="badge b-none">non localisé</span>';
@@ -1142,7 +1167,7 @@ function geoBadge(e){
 function bldgLine(e){
   const s=splitAddress(e.address);if(!s.box)return '';
   const b=e.bldg||(e.swap?s.box:s.num),x=e.bldg?e.boxNo:(e.swap?s.num:s.box);
-  return `<div class="row mt" style="font-size:14px"><span>🏢 Immeuble <b>${esc(b)}</b> · boîte <b>${esc(x)}</b></span>
+  return `<div class="row mt" style="font-size:14px"><span>Immeuble <b>${esc(b)}</b> · boîte <b>${esc(x)}</b></span>
     ${e.ambig?'<span class="badge b-warn">n° à vérifier</span>':''}
     <button class="btn" style="padding:4px 10px" data-act="swap">⇄ inverser</button></div>`;
 }
@@ -1151,7 +1176,7 @@ function sortedEntries(){return state.entries.slice().sort(cmpPda)}
 function renderEntries(){
   const list=sortedEntries();
   const parcels=list.reduce((s,e)=>s+(+e.parcels||1),0);
-  $('#entryCount').textContent=list.length?`${list.length} · ${parcels} 📦`:'';
+  $('#entryCount').textContent=list.length?`${list.length} · ${parcels} colis`:'';
   $('#entries').innerHTML=list.length?list.map(e=>{
     const iss=entryIssues(e),w=f=>iss[f]?' class="warn"':'',todo=Object.values(iss);
     return `
@@ -1160,16 +1185,16 @@ function renderEntries(){
         <div><label>N° tour</label><input data-f="pda"${w('pda')} autocapitalize="characters" value="${esc(e.pda==null?'':e.pda)}"></div>
         <div><label>Colis</label><input type="number"${w('parcels')} inputmode="numeric" min="1" data-f="parcels" value="${e.parcels||1}"></div>
         <div>${geoBadge(e)}${e.dup?' <span class="badge b-warn" title="Même page déjà scannée ? Supprime-la si c’est la même photo.">doublon ?</span>':''}</div>
-        <button class="iconbtn" data-act="del" title="Supprimer">🗑️</button>
+        <button class="iconbtn" data-act="del" title="Supprimer"><svg class="i"><use href="#i-x"/></svg></button>
       </div>
       <div class="fields">
         <input data-f="name"${w('name')} placeholder="Nom du client" value="${esc(e.name)}">
         <input data-f="address"${w('address')} placeholder="7-9 Rue de Courtrai (code postal facultatif)" value="${esc(e.address)}">
       </div>${bldgLine(e)}
-      ${todo.length?`<div class="note">⚠️ À vérifier : ${esc(todo.join(', '))}</div>`:''}
-      ${e.ocrAddr?`<div class="note">✏️ Rue corrigée par le registre officiel (lu : ${esc(e.ocrAddr)})</div>`:''}
-      ${e.reads&&e.reads.length>1?`<div class="note">🔁 ${e.reads.length} lectures de cette page combinées</div>`:''}
-    </div>`}).join(''):'<p class="muted" style="text-align:center">Aucun colis — scanne le PDA 📸</p>';
+      ${todo.length?`<div class="note">À vérifier : ${esc(todo.join(', '))}</div>`:''}
+      ${e.ocrAddr?`<div class="note">Rue corrigée par le registre officiel (lu : ${esc(e.ocrAddr)})</div>`:''}
+      ${e.reads&&e.reads.length>1?`<div class="note">${e.reads.length} lectures de cette page combinées</div>`:''}
+    </div>`}).join(''):'<p class="muted" style="text-align:center">Aucun colis — scanne le PDA</p>';
   const sc=$('#streetCount');if(sc)sc.textContent=Object.keys(streets).length;
   $('#learnCount').textContent=Object.keys(learned).length;
   updateHeader();
@@ -1196,7 +1221,7 @@ $('#entries').addEventListener('click',async e=>{
     ent.swap=!swappedNow;ent.lat=ent.lon=null;ent.geo=null;ent.bldg='';ent.boxNo='';ent.ambig=false;
     e.target.disabled=true;e.target.textContent='…';
     await geocodeEntry(ent);persist();renderEntries();
-    toast('Immeuble / boîte inversés ✔');
+    toast('Immeuble / boîte inversés');
   }
 });
 
@@ -1312,7 +1337,7 @@ async function geocodeAll(){
   }
   prog('#geoProg',null);$('#geoBtn').disabled=false;
   const fails=state.entries.filter(e=>e.geo==='fail').length,approx=state.entries.filter(e=>e.geo==='approx').length,amb=state.entries.filter(e=>e.ambig).length;
-  $('#geoStatus').innerHTML=fails||approx||amb?`⚠️ ${fails} introuvable(s), ${approx} approximative(s), ${amb} immeuble/boîte à vérifier. Corrige l’adresse, utilise ⇄, ou glisse le point sur la carte.`:'✅ Toutes les adresses sont localisées.';
+  $('#geoStatus').innerHTML=fails||approx||amb?`${fails} introuvable(s), ${approx} approximative(s), ${amb} immeuble/boîte à vérifier. Corrige l’adresse, utilise ⇄, ou glisse le point sur la carte.`:'Toutes les adresses sont localisées.';
   renderEntries();
   return fails===0;
 }
@@ -1436,11 +1461,11 @@ async function runOptimization(fromGps,progId,statusEl){
     if(still&&!confirm(`${still} adresse(s) introuvable(s) seront ignorées. Continuer ?`))return;
   }
   const stopsAll=buildStops();
-  if(!stopsAll.length){status('❌ Aucun colis localisé.');return}
+  if(!stopsAll.length){status('Aucun colis localisé.');return}
   let fixed=[],toOpt=stopsAll;
   if(fromGps){fixed=state.stops.filter(s=>s.status!=='todo').map(s=>stopsAll.find(x=>x.key===s.key)||s);toOpt=stopsAll.filter(s=>s.status==='todo')}
   let start=null;
-  if(fromGps||!state.depot){status('Lecture du GPS…');try{start=await getGps()}catch(e){if(state.depot)start=state.depot;else{status('❌ Pas de dépôt et GPS indisponible. Indique le dépôt en haut.');return}}}
+  if(fromGps||!state.depot){status('Lecture du GPS…');try{start=await getGps()}catch(e){if(state.depot)start=state.depot;else{status('Pas de dépôt et GPS indisponible. Indique le dépôt en haut.');return}}}
   else start=state.depot;
   if(!toOpt.length){status('Plus aucun stop à faire.');return}
   const pts=[start,...toOpt];
@@ -1460,12 +1485,12 @@ async function runOptimization(fromGps,progId,statusEl){
   state.current=state.stops.findIndex(s=>s.status==='todo');if(state.current<0)state.current=0;
   state.summary={drive:tsec,km:tm/1000,approx,at:Date.now()};
   persist();prog(progId,null);
-  status(`✅ ${ordered.length} stops · 🕒 ${fmtDur(tsec)} · ${(tm/1000).toFixed(1)} km`+(approx?' · ⚠️ distances estimées':''));
+  status(`${ordered.length} stops · ${fmtDur(tsec)} · ${(tm/1000).toFixed(1)} km`+(approx?' · distances estimées':''));
   renderEntries();
   return true;
 }
-$('#optBtn').onclick=async()=>{$('#optBtn').disabled=true;try{const ok=await runOptimization(false,'#optProg',$('#optStatus'));if(ok)setTimeout(()=>showTab('tour'),900)}catch(e){$('#optStatus').textContent='❌ '+(e.message||e)}$('#optBtn').disabled=false;prog('#optProg',null)};
-$('#reoptBtn').onclick=async()=>{$('#reoptBtn').disabled=true;try{const ok=await runOptimization(true,'#reoptProg',$('#reoptStatus'));if(ok)renderTour()}catch(e){$('#reoptStatus').textContent='❌ '+(e.message||e)}$('#reoptBtn').disabled=false;prog('#reoptProg',null)};
+$('#optBtn').onclick=async()=>{$('#optBtn').disabled=true;try{const ok=await runOptimization(false,'#optProg',$('#optStatus'));if(ok)setTimeout(()=>showTab('tour'),900)}catch(e){$('#optStatus').textContent=''+(e.message||e)}$('#optBtn').disabled=false;prog('#optProg',null)};
+$('#reoptBtn').onclick=async()=>{$('#reoptBtn').disabled=true;try{const ok=await runOptimization(true,'#reoptProg',$('#reoptStatus'));if(ok)renderTour()}catch(e){$('#reoptStatus').textContent=''+(e.message||e)}$('#reoptBtn').disabled=false;prog('#reoptProg',null)};
 
 /* ================= Écran tournée ================= */
 function updateHeader(){
@@ -1496,30 +1521,30 @@ function renderTour(){
   const e0=ents[0],twoNum=e0&&e0.bldg&&splitAddress(e0.address).box;
   $('#curAddr').textContent=s.address+(twoNum?`  →  n° ${e0.bldg}`:'');
   const np=stopParcels(s);
-  $('#curParcels').textContent=`📦 ${np}`+(cl.length>1?` · ${cl.length} clients`:'');
-  $('#curStatus').innerHTML=s.status==='done'?'<span class="badge b-ok">✓ Livré</span>':s.status==='fail'?'<span class="badge b-bad">✗ Échec</span>':'';
+  $('#curParcels').textContent=`${np} colis`+(cl.length>1?` · ${cl.length} clients`:'');
+  $('#curStatus').innerHTML=s.status==='done'?'<span class="badge b-ok">Livré</span>':s.status==='fail'?'<span class="badge b-bad">Échec</span>':'';
   $('#resetStopBtn').style.display=s.status==='todo'?'none':'block';
   $('#wazeBtn').href=`https://waze.com/ul?ll=${s.lat},${s.lon}&navigate=yes`;
   $('#gmapsBtn').href=`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}&travelmode=driving`;
   const nx=nextTodo(state.current);
-  if(!todo.length)$('#nextInfo').innerHTML='🏆 <b>Tournée terminée, bravo !</b>';
+  if(!todo.length)$('#nextInfo').innerHTML='<b>Tournée terminée, bravo !</b>';
   else if(nx>=0&&nx!==state.current){$('#nextInfo').innerHTML=`Ensuite → <b>#${nx+1}</b> ${esc(st[nx].address)}`}
   else $('#nextInfo').textContent='';
   $('#stopList').innerHTML=st.map((x,i)=>{const e=stopEntries(x),p=uniqPdas(e);
     return `<div class="it ${i===state.current?'cur':''} ${x.status!=='todo'?'done':''}" data-i="${i}">
       <div class="n">#${i+1}</div>
       <div class="d"><div><b>${esc(clientsOfStop(x).map(c=>c.name||'(sans nom)').join(', '))}</b></div><div class="muted">${p.length?'PDA '+p.join(', ')+' · ':''}${stopParcels(x)} colis · ${esc(x.address)}</div></div>
-      <div class="st">${x.status==='done'?'✅':x.status==='fail'?'❌':''}</div></div>`}).join('');
+      <div class="st">${x.status==='done'?'<svg class="i" style="color:var(--ok)"><use href="#i-check"/></svg>':x.status==='fail'?'<svg class="i" style="color:var(--bad)"><use href="#i-x"/></svg>':''}</div></div>`}).join('');
 }
 $('#stopList').addEventListener('click',e=>{const it=e.target.closest('.it');if(!it)return;state.current=+it.dataset.i;persist();renderTour();window.scrollTo({top:0,behavior:'smooth'})});
-const CHEERS=['Bien joué 💪','Un de plus 🔥','Ça roule 🚀','Trop fort ⚡','Nickel ✨','En feu 🔥'];
+const CHEERS=['Bien joué','Un de plus','Ça roule','Trop fort','Nickel','En feu'];
 function mark(status){
   const s=state.stops[state.current];if(!s)return;s.status=status;const nx=nextTodo(state.current);if(nx>=0)state.current=nx;persist();renderTour();window.scrollTo({top:0,behavior:'smooth'});
   if(status!=='done')return;
   try{navigator.vibrate&&navigator.vibrate(35)}catch(e){}
   const st=state.stops,left=st.filter(x=>x.status==='todo').length,pct=Math.round((st.length-left)*100/st.length);
   const prevPct=Math.round((st.length-left-1)*100/st.length),mile=[25,50,75].find(m=>prevPct<m&&pct>=m);
-  toast(!left?'🏆 Tournée terminée !':mile?`🎯 ${mile}% fait !`:left<=5?`Plus que ${left} 🏁`:CHEERS[Math.floor(Math.random()*CHEERS.length)],1600);
+  toast(!left?'Tournée terminée !':mile?`${mile}% fait !`:left<=5?`Plus que ${left}`:CHEERS[Math.floor(Math.random()*CHEERS.length)],1600);
   const h=$('#curCard');h.classList.remove('celebrate');void h.offsetWidth;h.classList.add('celebrate');
 }
 $('#doneBtn').onclick=()=>mark('done');
@@ -1547,7 +1572,7 @@ function renderMap(){
     mk.on('dragend',()=>{const ll=mk.getLatLng();s.lat=ll.lat;s.lon=ll.lng;learned[s.key]={lat:ll.lat,lon:ll.lng};save(LS_LEARN,learned);
       ents.forEach(e=>{e.lat=ll.lat;e.lon=ll.lng;e.geo='manual'});
       const st=state.stops.find(x=>x.key===s.key);if(st){st.lat=ll.lat;st.lon=ll.lng}
-      persist();renderEntries();toast('Position corrigée et mémorisée ✔')});
+      persist();renderEntries();toast('Position corrigée et mémorisée')});
   });
   if(state.stops.length&&line.length>1)L.polyline(line,{color:'#1f6feb',weight:2,opacity:.6,dashArray:'4 6'}).addTo(layer);
   if(pts.length)map.fitBounds(pts,{padding:[30,30],maxZoom:16});else map.setView([50.85,4.35],11);
@@ -1573,7 +1598,7 @@ function updateMe(p){
   // flèche de direction quand on roule
   const el=meMarker.getElement(),arrow=el&&el.querySelector('.me-arrow');
   if(arrow){if(hd!=null&&!isNaN(hd)&&sp!=null&&sp>1){arrow.style.display='block';arrow.style.transform=`rotate(${hd}deg)`}else arrow.style.display='none'}
-  $('#meInfo').textContent=`📍 précision ± ${Math.round(acc)} m`+(sp!=null&&sp>0.5?` · ${Math.round(sp*3.6)} km/h`:'');
+  $('#meInfo').textContent=`Précision ± ${Math.round(acc)} m`+(sp!=null&&sp>0.5?` · ${Math.round(sp*3.6)} km/h`:'');
   if(meFollow)map.panTo(ll,{animate:true});
 }
 $('#meBtn').onclick=()=>{
@@ -1587,7 +1612,7 @@ document.addEventListener('visibilitychange',()=>{if(!$('#tab-map').classList.co
 /* ================= Données ================= */
 $('#newTour').onclick=()=>{if(!confirm('Effacer tous les colis et la tournée ? (le dépôt et les positions corrigées sont gardés)'))return;state.entries=[];state.stops=[];state.current=0;state.summary=null;$('#rawText').value='';photoClear();persist();renderEntries();renderTour();$('#optStatus').textContent='';$('#geoStatus').textContent='';$('#ocrStatus').textContent=''};
 $('#exportBtn').onclick=async()=>{const photos=await photoAll();const blob=new Blob([JSON.stringify({state,learned,streets,photos},null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='tournee-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
-$('#importInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const j=JSON.parse(await f.text());if(j.state)state=Object.assign({},DEFAULT_STATE,j.state);if(j.learned){learned=Object.assign(learned,j.learned);save(LS_LEARN,learned)}if(j.streets){streets=Object.assign(streets,j.streets);save(LS_STREETS,streets)}persist();renderAll();toast('Restauré ✔')}catch(err){toast('Fichier invalide')}e.target.value=''};
+$('#importInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const j=JSON.parse(await f.text());if(j.state)state=Object.assign({},DEFAULT_STATE,j.state);if(j.learned){learned=Object.assign(learned,j.learned);save(LS_LEARN,learned)}if(j.streets){streets=Object.assign(streets,j.streets);save(LS_STREETS,streets)}persist();renderAll();toast('Restauré')}catch(err){toast('Fichier invalide')}e.target.value=''};
 $('#clearStreets').onclick=()=>{if(confirm('Oublier les rues apprises ?')){streets={};save(LS_STREETS,streets);renderEntries()}};
 $('#clearLearn').onclick=()=>{if(confirm('Oublier toutes les positions corrigées à la main ?')){learned={};save(LS_LEARN,learned);renderEntries()}};
 
@@ -1598,7 +1623,7 @@ let installEvt=null;
 if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.serviceWorker.register('sw.js').catch(()=>{})}
 if(!isStandalone()&&location.protocol==='https:'){$('#installCard').style.display='block';$('#installHelp').style.display='block'}
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;$('#installCard').style.display='block';$('#installHelp').style.display='none'});
-window.addEventListener('appinstalled',()=>{$('#installCard').style.display='none';toast('Application installée ✔ Ouvre-la depuis ton écran d’accueil.',4000)});
+window.addEventListener('appinstalled',()=>{$('#installCard').style.display='none';toast('Application installée. Ouvre-la depuis ton écran d’accueil.',4000)});
 $('#installBtn').onclick=async()=>{
   if(!installEvt){$('#installHelp').style.display='block';return}
   installEvt.prompt();const r=await installEvt.userChoice;installEvt=null;
