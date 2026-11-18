@@ -1,5 +1,5 @@
 // Service worker : permet l'installation comme application et le démarrage sans réseau.
-const CACHE = 'tournee-v1';
+const CACHE = 'tournee-v2';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 const LIBS = ['unpkg.com', 'cdn.jsdelivr.net'];
 

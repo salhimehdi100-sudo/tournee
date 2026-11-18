@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1f6feb">
+<meta name="theme-color" content="#241a63">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
@@ -13,94 +13,125 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root{
-  --bg:#f4f6f9; --card:#ffffff; --text:#14181f; --muted:#5d6675; --line:#dde2ea;
-  --accent:#1f6feb; --accent-text:#ffffff; --ok:#1a7f37; --ok-bg:#dcf5e3; --bad:#c62828; --bad-bg:#fde2e2;
-  --warn:#9a6700; --warn-bg:#fff3c4; --input:#ffffff;
+  --bg:#f5f4fb; --card:#ffffff; --text:#17142e; --muted:#6b6789; --line:#e9e6f5; --input:#f7f6fc;
+  --ink:#241a63; --ink2:#5b2bd6;
+  --accent:#ff5a2e; --accent2:#ff2d78; --accent-text:#ffffff;
+  --ok:#0fbf7a; --ok-bg:#ddf8ec; --bad:#ff3b5c; --bad-bg:#ffe3e9; --warn:#c77800; --warn-bg:#fff1d6;
+  --waze:#2fb7f0; --shadow:0 6px 20px rgba(36,26,99,.08);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#0f1318; --card:#1a2029; --text:#e8edf3; --muted:#9aa4b2; --line:#2c3440;
-    --accent:#4c8dff; --accent-text:#ffffff; --ok:#4ac26b; --ok-bg:#163522; --bad:#ff6b6b; --bad-bg:#3b1a1a;
-    --warn:#f2c94c; --warn-bg:#3a3014; --input:#121821;
+    --bg:#0e0c1f; --card:#1a1733; --text:#f3f1ff; --muted:#a29dc4; --line:#2c2850; --input:#141129;
+    --ink:#2a1f73; --ink2:#6a3cf0;
+    --ok:#22d98f; --ok-bg:#103a2a; --bad:#ff5a75; --bad-bg:#3d1624; --warn:#ffc04d; --warn-bg:#3a2c10;
+    --shadow:0 6px 20px rgba(0,0,0,.35);
   }
 }
 :root[data-theme="dark"]{
-  --bg:#0f1318; --card:#1a2029; --text:#e8edf3; --muted:#9aa4b2; --line:#2c3440;
-  --accent:#4c8dff; --accent-text:#ffffff; --ok:#4ac26b; --ok-bg:#163522; --bad:#ff6b6b; --bad-bg:#3b1a1a;
-  --warn:#f2c94c; --warn-bg:#3a3014; --input:#121821;
+  --bg:#0e0c1f; --card:#1a1733; --text:#f3f1ff; --muted:#a29dc4; --line:#2c2850; --input:#141129;
+  --ink:#2a1f73; --ink2:#6a3cf0;
+  --ok:#22d98f; --ok-bg:#103a2a; --bad:#ff5a75; --bad-bg:#3d1624; --warn:#ffc04d; --warn-bg:#3a2c10;
+  --shadow:0 6px 20px rgba(0,0,0,.35);
 }
-*{box-sizing:border-box}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:76px}
-header{position:sticky;top:0;z-index:1000;background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:10px}
-header h1{font-size:18px;margin:0;flex:1}
-main{max-width:720px;margin:0 auto;padding:12px 16px}
-section.tab{display:none}
+body{background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:96px}
+header{position:sticky;top:0;z-index:1000;background:linear-gradient(120deg,var(--ink),var(--ink2));color:#fff;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));display:flex;align-items:center;gap:10px;box-shadow:0 4px 18px rgba(36,26,99,.25)}
+header h1{font-size:19px;margin:0;flex:1;font-weight:800;letter-spacing:-.01em}
+#hdrInfo{background:rgba(255,255,255,.16);color:#fff;font-weight:700;font-size:13px;padding:4px 10px;border-radius:999px}
+#hdrInfo:empty{display:none}
+main{max-width:720px;margin:0 auto;padding:14px 16px}
+section.tab{display:none;animation:fade .25s ease}
 section.tab.active{display:block}
-nav.tabs{position:fixed;bottom:0;left:0;right:0;z-index:1000;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
-nav.tabs button{flex:1;border:0;background:none;color:var(--muted);padding:10px 4px 12px;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:2px}
-nav.tabs button span{font-size:22px;line-height:1}
-nav.tabs button.active{color:var(--accent);font-weight:600}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
-h2{font-size:16px;margin:0 0 8px}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* barre d'onglets flottante */
+nav.tabs{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:1000;display:flex;gap:4px;background:var(--card);border-radius:22px;padding:6px;box-shadow:0 8px 28px rgba(36,26,99,.18);max-width:520px;margin:0 auto}
+nav.tabs button{flex:1;border:0;background:none;color:var(--muted);padding:8px 4px;font:600 12px system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;gap:2px;border-radius:16px;transition:background .2s,color .2s}
+nav.tabs button span{font-size:21px;line-height:1}
+nav.tabs button.active{background:linear-gradient(120deg,var(--accent),var(--accent2));color:#fff}
+.card{background:var(--card);border-radius:20px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
+h2{font-size:17px;margin:0 0 10px;font-weight:800;display:flex;align-items:center;gap:8px}
+.step{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:9px;background:linear-gradient(120deg,var(--accent),var(--accent2));color:#fff;font-size:14px;font-weight:800;flex:none}
 .muted{color:var(--muted);font-size:14px}
-input,textarea,select{width:100%;font:inherit;color:var(--text);background:var(--input);border:1px solid var(--line);border-radius:8px;padding:9px 10px}
+input,textarea,select{width:100%;font:inherit;color:var(--text);background:var(--input);border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;outline:none;transition:border-color .15s}
+input:focus,textarea:focus,select:focus{border-color:var(--ink2)}
 textarea{min-height:110px;font-family:ui-monospace,Consolas,monospace;font-size:13px}
-label.chk{display:flex;align-items:center;gap:8px;margin-top:8px}
-label.chk input{width:auto}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;padding:10px 14px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
-.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
-.btn.bad{background:var(--bad);border-color:var(--bad);color:#fff}
-.btn.big{padding:16px;font-size:18px;border-radius:12px}
+label.chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:15px}
+label.chk input{width:auto;accent-color:var(--accent)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;background:var(--input);color:var(--text);border-radius:14px;padding:11px 14px;font:inherit;font-weight:700;cursor:pointer;text-decoration:none;transition:transform .1s,filter .15s;user-select:none}
+.btn:active{transform:scale(.96)}
+.btn.primary{background:linear-gradient(120deg,var(--accent),var(--accent2));color:var(--accent-text);box-shadow:0 6px 16px rgba(255,61,90,.32)}
+.btn.ok{background:var(--ok);color:#fff;box-shadow:0 6px 16px rgba(15,191,122,.32)}
+.btn.bad{background:var(--bad-bg);color:var(--bad)}
+.btn.waze{background:var(--waze);color:#fff}
+.btn.big{padding:17px;font-size:18px;border-radius:18px}
 .btn:disabled{opacity:.5}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .row > *{min-width:0}
 .grow{flex:1}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.mt{margin-top:8px}
-.entry .top{display:grid;grid-template-columns:80px 70px 1fr auto;gap:6px;align-items:end;margin-bottom:6px}
-.entry label{font-size:12px;color:var(--muted);display:block}
-.entry input{padding:7px 8px}
+.mt{margin-top:10px}
+.mt:empty{display:none}
+.entry{padding:12px;border-radius:16px;box-shadow:none;border:1.5px solid var(--line)}
+.entry .top{display:grid;grid-template-columns:76px 64px 1fr auto;gap:6px;align-items:end;margin-bottom:6px}
+.entry label{font-size:11px;color:var(--muted);display:block;text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+.entry input{padding:8px 9px;border-radius:10px}
 .entry .fields{display:grid;gap:6px}
 .entry input.warn{border-color:var(--warn);background:var(--warn-bg)}
 .entry .note{font-size:13px;color:var(--muted);margin-top:4px}
-.badge{display:inline-block;font-size:12px;font-weight:600;padding:3px 8px;border-radius:999px;white-space:nowrap;text-align:center}
+.badge{display:inline-block;font-size:12px;font-weight:700;padding:4px 9px;border-radius:999px;white-space:nowrap;text-align:center}
 .b-ok{background:var(--ok-bg);color:var(--ok)}
 .b-bad{background:var(--bad-bg);color:var(--bad)}
 .b-warn{background:var(--warn-bg);color:var(--warn)}
-.b-none{background:var(--bg);color:var(--muted)}
+.b-none{background:var(--input);color:var(--muted)}
 .iconbtn{border:0;background:none;font-size:20px;padding:4px 6px;cursor:pointer;color:var(--muted)}
-.progress{height:6px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:8px;display:none}
-.progress > div{height:100%;width:0;background:var(--accent);transition:width .2s}
-#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:2000;max-width:90vw;display:none}
+.progress{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:10px;display:none}
+.progress > div{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .25s}
+#toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:16px;font-size:15px;font-weight:700;z-index:2000;max-width:90vw;display:none;box-shadow:0 8px 24px rgba(0,0,0,.25);animation:pop .25s ease}
+@keyframes pop{from{transform:translateX(-50%) scale(.85);opacity:0}to{transform:translateX(-50%) scale(1);opacity:1}}
+details summary{cursor:pointer;font-weight:700;list-style:none;color:var(--muted)}
+details summary::-webkit-details-marker{display:none}
+details[open] summary{margin-bottom:8px}
+.tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 /* Tournée */
-.counter{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
-.counter .big{font-size:30px;font-weight:800}
-.nums{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
-.num{background:var(--bg);border-radius:10px;padding:8px 10px;text-align:center}
-.num .lbl{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-.num .val{font-size:34px;font-weight:800;line-height:1.1}
-.client{font-size:22px;font-weight:700;margin:4px 0}
-.addr{font-size:17px;margin:2px 0 10px}
-.parcels{font-size:16px;font-weight:600}
-.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
-.stoplist .it{display:flex;gap:10px;align-items:center;padding:9px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.hero{background:linear-gradient(140deg,var(--ink),var(--ink2));color:#fff;border-radius:24px;padding:18px;margin-bottom:14px;box-shadow:0 10px 30px rgba(60,30,180,.3)}
+.hero .muted{color:rgba(255,255,255,.72)}
+.daybar{height:12px;background:rgba(255,255,255,.18);border-radius:99px;overflow:hidden;margin:6px 0 4px}
+.daybar > div{height:100%;width:0;background:linear-gradient(90deg,#ffd23f,var(--accent),var(--accent2));border-radius:99px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.daystats{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;font-weight:700}
+.daystats .pct{font-size:28px;font-weight:900;letter-spacing:-.02em}
+.stopnum{display:flex;align-items:center;gap:12px;margin:16px 0 8px}
+.bubble{width:64px;height:64px;border-radius:20px;background:linear-gradient(140deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900;flex:none;box-shadow:0 6px 18px rgba(255,61,90,.45)}
+.pda{display:inline-block;background:rgba(255,255,255,.16);border-radius:10px;padding:4px 10px;font-weight:800;font-size:15px}
+.client{font-size:23px;font-weight:800;margin:2px 0;line-height:1.2}
+.addr{font-size:16px;margin:4px 0 10px;opacity:.9}
+.parcels{display:inline-block;background:#ffd23f;color:#241a63;font-weight:800;font-size:15px;padding:5px 12px;border-radius:999px}
+.hero .box{background:#ffd23f;color:#241a63}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.actions .full{grid-column:1/-1}
+.hero .btn:not(.primary):not(.ok):not(.waze){background:rgba(255,255,255,.14);color:#fff}
+.hero .btn.bad{background:rgba(255,59,92,.22);color:#ffd6de}
+#nextInfo{margin-top:12px;font-size:14px;color:rgba(255,255,255,.8)}
+#nextInfo:empty{display:none}
+.stoplist .it{display:flex;gap:10px;align-items:center;padding:10px 6px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:12px}
 .stoplist .it:last-child{border-bottom:0}
-.stoplist .it.cur{background:var(--warn-bg);border-radius:8px}
-.stoplist .n{font-weight:800;min-width:34px;text-align:right}
+.stoplist .it.cur{background:linear-gradient(120deg,rgba(255,90,46,.12),rgba(255,45,120,.12))}
+.stoplist .n{font-weight:900;min-width:34px;text-align:right;color:var(--accent)}
 .stoplist .d{flex:1;min-width:0}
 .stoplist .d div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stoplist .st{font-size:18px}
-.done .d{opacity:.55;text-decoration:line-through}
-#map{height:calc(100vh - 190px);min-height:320px;border-radius:12px;border:1px solid var(--line)}
-.pin{background:var(--accent);color:#fff;border:2px solid #fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.4)}
-.pin.done{background:#888}.pin.fail{background:var(--bad)}.pin.cur{background:#f59e0b}.pin.depot{background:#111;border-radius:6px}
-details summary{cursor:pointer;font-weight:600}
-#meBtn{position:absolute;right:10px;bottom:24px;z-index:500;box-shadow:0 2px 6px rgba(0,0,0,.3)}
-#meBtn.follow{background:var(--accent);color:#fff;border-color:var(--accent)}
-#meInfo{position:absolute;left:10px;bottom:28px;z-index:500;background:var(--card);padding:3px 8px;border-radius:8px;font-size:12px}
+.done .d{opacity:.5;text-decoration:line-through}
+.done .n{color:var(--muted)}
+.celebrate{animation:boom .5s ease}
+@keyframes boom{0%{transform:scale(1)}40%{transform:scale(1.04)}100%{transform:scale(1)}}
+#map{height:calc(100vh - 210px);min-height:320px;border-radius:20px;box-shadow:var(--shadow)}
+.pin{background:linear-gradient(140deg,var(--accent),var(--accent2));color:#fff;border:2px solid #fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.pin.done{background:#9b97b5}.pin.fail{background:var(--bad)}.pin.cur{background:#ffd23f;color:#241a63;transform:scale(1.25)}.pin.depot{background:var(--ink);border-radius:8px}
+#meBtn{position:absolute;right:10px;bottom:24px;z-index:500;box-shadow:0 4px 12px rgba(0,0,0,.25);background:var(--card)}
+#meBtn.follow{background:linear-gradient(120deg,var(--accent),var(--accent2));color:#fff}
+#meInfo{position:absolute;left:10px;bottom:28px;z-index:500;background:var(--card);padding:4px 10px;border-radius:10px;font-size:12px}
 #meInfo:empty{display:none}
+.maphint{margin:0 0 10px;text-align:center}
 .me{position:relative;width:44px;height:44px}
 .me-dot{position:absolute;left:13px;top:13px;width:18px;height:18px;border-radius:50%;background:#1a73e8;border:3px solid #fff;box-shadow:0 0 0 2px rgba(26,115,232,.35),0 1px 4px rgba(0,0,0,.4)}
 .me-pulse{position:absolute;left:4px;top:4px;width:36px;height:36px;border-radius:50%;background:rgba(26,115,232,.25);animation:mepulse 2s ease-out infinite}
@@ -110,43 +141,39 @@ details summary{cursor:pointer;font-weight:600}
 #scanner{position:fixed;inset:0;z-index:3000;background:#000;display:none;flex-direction:column}
 #scanVideo{flex:1;width:100%;height:100%;object-fit:contain;min-height:0}
 #scanFlash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .12s}
-.scanTop{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:rgba(0,0,0,.55);color:#fff;font-weight:700}
-.scanBottom{padding:12px 16px calc(16px + env(safe-area-inset-bottom));background:rgba(0,0,0,.75);color:#fff}
+.scanTop{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));background:rgba(0,0,0,.55);color:#fff;font-weight:800}
+.scanBottom{padding:14px 16px calc(18px + env(safe-area-inset-bottom));background:rgba(0,0,0,.75);color:#fff}
 #scanLast{font-size:14px;min-height:40px;margin-bottom:10px}
 #scanShot{width:100%;font-size:22px;padding:20px}
-.box{display:inline-block;background:var(--warn-bg);color:var(--warn);font-weight:700;border-radius:8px;padding:2px 8px;margin-left:6px}
+.box{display:inline-block;background:var(--warn-bg);color:var(--warn);font-weight:800;border-radius:8px;padding:2px 8px;margin-left:6px;font-size:14px}
+.empty{text-align:center;padding:28px 16px}
+.empty .big{font-size:44px}
 </style>
 </head>
 <body>
 <header>
   <h1>🚚 Ma Tournée</h1>
-  <span id="hdrInfo" class="muted"></span>
+  <span id="hdrInfo"></span>
 </header>
 
 <main>
 <!-- ====== PRÉPARER ====== -->
 <section class="tab active" id="tab-prep">
-  <div class="card" id="installCard" style="display:none;border-color:var(--accent)">
-    <h2>📲 Installer l'application</h2>
-    <p class="muted" style="margin:0 0 8px">Pour l'ouvrir comme une vraie appli (icône, plein écran, sans navigateur).</p>
-    <button class="btn primary" style="width:100%" id="installBtn">Installer</button>
-    <p class="muted" id="installHelp" style="display:none;margin:8px 0 0">Dans <b>Chrome</b> (pas depuis WhatsApp/Messenger/Gmail) : menu <b>⋮</b> en haut à droite → <b>Ajouter à l'écran d'accueil</b> → <b>Installer</b>.<br>Samsung Internet : menu <b>≡</b> → <b>Ajouter la page à</b> → <b>Écran d'accueil</b>.</p>
+  <div class="card" id="installCard" style="display:none">
+    <button class="btn primary" style="width:100%" id="installBtn">📲 Installer l'app</button>
+    <p class="muted" id="installHelp" style="display:none;margin:8px 0 0">Chrome : <b>⋮</b> → <b>Ajouter à l'écran d'accueil</b></p>
   </div>
+
   <div class="card">
-    <h2>1. Dépôt (départ)</h2>
+    <h2><span class="step">1</span>Départ</h2>
     <div class="row">
       <input id="depotInput" class="grow" placeholder="Adresse du dépôt">
-      <button class="btn" id="depotFind">Trouver</button>
-      <button class="btn" id="depotGps" title="Utiliser ma position">📍</button>
+      <button class="btn" id="depotFind" title="Trouver">🔍</button>
+      <button class="btn" id="depotGps" title="Ma position">📍</button>
     </div>
     <div id="depotInfo" class="muted mt"></div>
-    <label class="chk"><input type="checkbox" id="returnDepot"> Revenir au dépôt à la fin</label>
-  </div>
-  <div class="card">
-    <h2>Commune de la tournée</h2>
-    <p class="muted" style="margin:0 0 6px">Les pages du PDA n'ont pas de code postal : choisis la commune pour localiser les adresses correctement.</p>
-    <select id="communeSel">
-      <option value="">Plusieurs communes (Bruxelles + Louvain)</option>
+    <select id="communeSel" class="mt" style="display:block">
+      <option value="">📍 Commune : plusieurs</option>
       <optgroup label="Bruxelles">
         <option>1000 Bruxelles</option><option>1020 Laeken</option><option>1030 Schaerbeek</option><option>1040 Etterbeek</option>
         <option>1050 Ixelles</option><option>1060 Saint-Gilles</option><option>1070 Anderlecht</option><option>1080 Molenbeek-Saint-Jean</option>
@@ -159,36 +186,35 @@ details summary{cursor:pointer;font-weight:600}
         <option>3000 Leuven</option><option>3001 Heverlee</option><option>3010 Kessel-Lo</option><option>3012 Wilsele</option><option>3018 Wijgmaal</option>
       </optgroup>
     </select>
+    <label class="chk"><input type="checkbox" id="returnDepot"> Retour au dépôt</label>
   </div>
 
   <div class="card">
-    <h2>2. Ajouter les colis</h2>
-    <p class="muted" style="margin:0 0 8px"><b>Une photo = une page du PDA.</b> L'app lit le n° de tour (ex. D27), l'adresse, le nom et le nombre de colis. Si un client a plusieurs pages, ses colis sont additionnés.</p>
-    <button class="btn primary big" style="width:100%;margin-bottom:8px" id="scanBtn">⚡ Scan rapide (caméra en continu)</button>
-    <div class="row">
-      <label class="btn grow" style="cursor:pointer">📷 Photo du PDA
+    <h2><span class="step">2</span>Scanner le PDA</h2>
+    <button class="btn primary big" style="width:100%" id="scanBtn">📸 Scanner</button>
+    <div class="tools">
+      <label class="btn" style="cursor:pointer">📷 Photo
         <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
       </label>
-      <label class="btn grow" style="cursor:pointer">🖼️ Galerie
+      <label class="btn" style="cursor:pointer">🖼️ Galerie
         <input type="file" id="galleryInput" accept="image/*" multiple style="display:none">
       </label>
     </div>
     <div class="progress" id="ocrProg"><div></div></div>
     <div id="ocrStatus" class="muted mt"></div>
-    <details class="mt">
-      <summary>Texte lu / coller du texte</summary>
-      <p class="muted">Tu peux corriger le texte lu, ou taper/coller des pages : une page par bloc, blocs séparés par une ligne vide.</p>
-      <textarea id="rawText" placeholder="D27&#10;7-9 Rue de Courtrai&#10;Mehdi Solhi&#10;2&#10;&#10;D28&#10;..."></textarea>
+    <details class="mt" style="display:block">
+      <summary>✏️ Saisie manuelle</summary>
+      <textarea id="rawText" placeholder="D27&#10;7-9 Rue de Courtrai&#10;Mehdi Solhi&#10;2"></textarea>
       <div class="row mt">
-        <button class="btn" id="parseBtn">Analyser ce texte</button>
-        <button class="btn" id="addManual">+ Ajouter à la main</button>
+        <button class="btn grow" id="parseBtn">Lire le texte</button>
+        <button class="btn grow" id="addManual">+ Colis</button>
       </div>
     </details>
   </div>
 
   <div class="card">
     <div class="row" style="justify-content:space-between">
-      <h2 style="margin:0">3. Liste des colis <span id="entryCount" class="muted"></span></h2>
+      <h2 style="margin:0">📦 Colis <span id="entryCount" class="muted" style="font-weight:600"></span></h2>
       <button class="btn" id="geoBtn">📍 Localiser</button>
     </div>
     <div class="progress" id="geoProg"><div></div></div>
@@ -197,69 +223,58 @@ details summary{cursor:pointer;font-weight:600}
   </div>
 
   <div class="card">
-    <h2>4. Optimiser</h2>
-    <p class="muted" style="margin:0 0 8px">Calcule le meilleur ordre en tenant compte des sens interdits (cartes OpenStreetMap). Les clients à la même adresse sont regroupés en un seul stop.</p>
+    <h2><span class="step">3</span>C'est parti</h2>
     <button class="btn primary big" style="width:100%" id="optBtn">⚡ Optimiser la tournée</button>
     <div class="progress" id="optProg"><div></div></div>
     <div id="optStatus" class="muted mt"></div>
   </div>
 
-  <div class="card">
-    <h2>Données</h2>
-    <div class="row">
-      <button class="btn" id="newTour">🗑️ Nouvelle tournée</button>
-      <button class="btn" id="exportBtn">💾 Sauvegarder</button>
-      <label class="btn" style="cursor:pointer">📂 Restaurer<input type="file" id="importInput" accept="application/json" style="display:none"></label>
+  <details class="card">
+    <summary>⚙️ Plus</summary>
+    <div class="tools">
+      <button class="btn" id="newTour">🗑️ Nouvelle</button>
+      <button class="btn" id="exportBtn">💾 Sauver</button>
+      <label class="btn" style="cursor:pointer;grid-column:1/-1">📂 Restaurer<input type="file" id="importInput" accept="application/json" style="display:none"></label>
     </div>
-    <p class="muted">Photos du scan gardées (incluses dans « Sauvegarder ») : <b id="photoCount">0</b></p>
-    <p class="muted">Positions corrigées à la main mémorisées : <b id="learnCount">0</b>
-      <button class="iconbtn" id="clearLearn" title="Oublier">✖</button></p>
-    <p class="muted">Rues officielles apprises (corrigent la lecture) : <b id="streetCount">0</b>
-      <button class="iconbtn" id="clearStreets" title="Oublier">✖</button></p>
-    <p class="muted">Tout reste sur ton téléphone. Aucun compte, aucun serveur à toi.</p>
-  </div>
+    <p class="muted">📷 Photos gardées : <b id="photoCount">0</b></p>
+    <p class="muted">📌 Positions corrigées : <b id="learnCount">0</b> <button class="iconbtn" id="clearLearn" title="Oublier">✖</button></p>
+    <p class="muted">🛣️ Rues apprises : <b id="streetCount">0</b> <button class="iconbtn" id="clearStreets" title="Oublier">✖</button></p>
+  </details>
 </section>
 
 <!-- ====== TOURNÉE ====== -->
 <section class="tab" id="tab-tour">
-  <div id="tourEmpty" class="card">
-    <h2>Pas encore de tournée</h2>
-    <p class="muted">Ajoute les colis dans « Préparer », puis appuie sur « Optimiser ».</p>
+  <div id="tourEmpty" class="card empty">
+    <div class="big">🚀</div>
+    <h2 style="justify-content:center">Prêt à démarrer ?</h2>
+    <p class="muted">Scanne le PDA puis ⚡ Optimiser.</p>
   </div>
   <div id="tourBody" style="display:none">
-    <div class="card">
-      <div class="counter">
-        <div><span class="muted">Stops restants</span><br><span class="big" id="remStops">0</span> <span class="muted" id="remTotal"></span></div>
-        <div style="text-align:right"><span class="muted">Colis restants</span><br><span class="big" id="remParcels">0</span></div>
+    <div class="hero" id="curCard">
+      <div class="daystats"><span><span id="remStops">0</span> stops <span class="muted" id="remTotal"></span> · <span id="remParcels">0</span> colis</span><span class="pct" id="dayPct">0%</span></div>
+      <div class="daybar"><div id="dayBar"></div></div>
+      <div class="stopnum">
+        <div class="bubble" id="curOpt">–</div>
+        <div><div class="muted" style="font-size:12px;font-weight:700;letter-spacing:.06em">N° PDA</div><span class="pda" id="curPda">–</span> <span id="curStatus"></span></div>
       </div>
-    </div>
-    <div class="card" id="curCard">
-      <div class="nums">
-        <div class="num"><div class="lbl">Ordre optimisé</div><div class="val" id="curOpt">–</div></div>
-        <div class="num"><div class="lbl">N° PDA</div><div class="val" id="curPda">–</div></div>
-      </div>
-      <div id="curStatus"></div>
       <div class="client" id="curName"></div>
       <div class="addr" id="curAddr"></div>
       <div class="parcels" id="curParcels"></div>
       <div class="actions">
-        <a class="btn primary big" id="wazeBtn" target="_blank" rel="noopener">🧭 Waze</a>
+        <button class="btn ok big full" id="doneBtn">✓ Livré</button>
+        <a class="btn waze big" id="wazeBtn" target="_blank" rel="noopener">🧭 Waze</a>
         <a class="btn big" id="gmapsBtn" target="_blank" rel="noopener">🗺️ Maps</a>
-        <button class="btn ok big" id="doneBtn">✓ Livré</button>
-        <button class="btn bad big" id="failBtn">✗ Échec</button>
-        <button class="btn" id="prevBtn">◀ Précédent</button>
-        <button class="btn" id="skipBtn">Passer ▶</button>
+        <button class="btn" id="prevBtn">◀</button>
+        <div class="grid2"><button class="btn bad" id="failBtn">✗</button><button class="btn" id="skipBtn">▶</button></div>
       </div>
-      <button class="btn mt" id="resetStopBtn" style="width:100%;display:none">↺ Remettre « à faire »</button>
-      <div class="muted mt" id="nextInfo"></div>
+      <button class="btn mt" id="resetStopBtn" style="width:100%;display:none">↺ À refaire</button>
+      <div id="nextInfo"></div>
     </div>
+    <button class="btn" style="width:100%;margin-bottom:14px" id="reoptBtn">⚡ Réoptimiser depuis ici</button>
+    <div class="progress" id="reoptProg" style="margin:-6px 0 14px"><div></div></div>
+    <div id="reoptStatus" class="muted" style="margin:-6px 0 14px"></div>
     <div class="card">
-      <button class="btn" style="width:100%" id="reoptBtn">⚡ Réoptimiser le reste depuis ma position</button>
-      <div class="progress" id="reoptProg"><div></div></div>
-      <div id="reoptStatus" class="muted mt"></div>
-    </div>
-    <div class="card">
-      <h2>Tous les stops</h2>
+      <h2>📋 Tous les stops</h2>
       <div class="stoplist" id="stopList"></div>
     </div>
   </div>
@@ -267,10 +282,10 @@ details summary{cursor:pointer;font-weight:600}
 
 <!-- ====== CARTE ====== -->
 <section class="tab" id="tab-map">
-  <p class="muted" style="margin:0 0 8px">Une position est fausse ? <b>Maintiens et glisse le point</b> au bon endroit (entrée, côté de la rue). L'app s'en souviendra pour les prochaines tournées.</p>
+  <p class="muted maphint">✋ Glisse un point pour corriger sa position</p>
   <div style="position:relative">
     <div id="map"></div>
-    <button class="btn" id="meBtn" title="Centrer sur ma position">◎ Moi</button>
+    <button class="btn" id="meBtn" title="Centrer sur ma position">◎</button>
     <div id="meInfo" class="muted"></div>
   </div>
 </section>
@@ -337,15 +352,15 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 function renderDepot(){
   $('#returnDepot').checked=!!state.returnToDepot;
   $('#communeSel').value=state.commune||'';
-  if(state.depot){$('#depotInput').value=state.depot.label||'';$('#depotInfo').innerHTML=`✅ Dépôt localisé (${state.depot.lat.toFixed(5)}, ${state.depot.lon.toFixed(5)})`}
-  else $('#depotInfo').textContent='Sans dépôt, la tournée part de ta position GPS actuelle.';
+  if(state.depot){$('#depotInput').value=state.depot.label||'';$('#depotInfo').innerHTML='✅ Dépôt trouvé'}
+  else $('#depotInfo').textContent='Sans dépôt : départ de ta position';
 }
 $('#depotFind').onclick=async()=>{
   const q=$('#depotInput').value.trim();if(!q)return;
   $('#depotInfo').textContent='Recherche…';
   const r=await geocode(q,true);
   if(r){state.depot={label:q,lat:r.lat,lon:r.lon};persist();renderDepot()}
-  else $('#depotInfo').textContent='❌ Adresse introuvable. Vérifie l’orthographe ou utilise 📍.';
+  else $('#depotInfo').textContent='❌ Introuvable — essaie 📍';
 };
 $('#depotGps').onclick=async()=>{
   $('#depotInfo').textContent='Lecture du GPS…';
@@ -1136,7 +1151,7 @@ function sortedEntries(){return state.entries.slice().sort(cmpPda)}
 function renderEntries(){
   const list=sortedEntries();
   const parcels=list.reduce((s,e)=>s+(+e.parcels||1),0);
-  $('#entryCount').textContent=list.length?`(${list.length} lignes · ${parcels} colis)`:'';
+  $('#entryCount').textContent=list.length?`${list.length} · ${parcels} 📦`:'';
   $('#entries').innerHTML=list.length?list.map(e=>{
     const iss=entryIssues(e),w=f=>iss[f]?' class="warn"':'',todo=Object.values(iss);
     return `
@@ -1154,7 +1169,7 @@ function renderEntries(){
       ${todo.length?`<div class="note">⚠️ À vérifier : ${esc(todo.join(', '))}</div>`:''}
       ${e.ocrAddr?`<div class="note">✏️ Rue corrigée par le registre officiel (lu : ${esc(e.ocrAddr)})</div>`:''}
       ${e.reads&&e.reads.length>1?`<div class="note">🔁 ${e.reads.length} lectures de cette page combinées</div>`:''}
-    </div>`}).join(''):'<p class="muted">Aucun colis pour l’instant.</p>';
+    </div>`}).join(''):'<p class="muted" style="text-align:center">Aucun colis — scanne le PDA 📸</p>';
   const sc=$('#streetCount');if(sc)sc.textContent=Object.keys(streets).length;
   $('#learnCount').textContent=Object.keys(learned).length;
   updateHeader();
@@ -1445,7 +1460,7 @@ async function runOptimization(fromGps,progId,statusEl){
   state.current=state.stops.findIndex(s=>s.status==='todo');if(state.current<0)state.current=0;
   state.summary={drive:tsec,km:tm/1000,approx,at:Date.now()};
   persist();prog(progId,null);
-  status(`✅ ${ordered.length} stops ordonnés · conduite estimée ${fmtDur(tsec)} · ${(tm/1000).toFixed(1)} km`+(approx?'<br>⚠️ Serveur de trajets partiellement indisponible : certaines distances sont estimées à vol d’oiseau.':'')+'<br><span class="muted">Sans trafic temps réel : Waze gère les bouchons pendant la conduite.</span>');
+  status(`✅ ${ordered.length} stops · 🕒 ${fmtDur(tsec)} · ${(tm/1000).toFixed(1)} km`+(approx?' · ⚠️ distances estimées':''));
   renderEntries();
   return true;
 }
@@ -1466,6 +1481,8 @@ function renderTour(){
   if(state.current>=st.length)state.current=0;
   const todo=st.filter(s=>s.status==='todo');
   $('#remStops').textContent=todo.length;$('#remTotal').textContent=`/ ${st.length}`;
+  const pct=Math.round((st.length-todo.length)*100/st.length);
+  $('#dayPct').textContent=pct+'%';$('#dayBar').style.width=pct+'%';
   $('#remParcels').textContent=todo.reduce((t,s)=>t+stopParcels(s),0);
   const s=st[state.current],ents=stopEntries(s);
   $('#curOpt').textContent=state.current+1;
@@ -1477,16 +1494,16 @@ function renderTour(){
     return esc(c.name||'(sans nom)')+(c.boxes.length?c.boxes.map(b=>`<span class="box">boîte ${esc(b)}</span>`).join(''):'')+
       (cl.length>1||c.parts.length>1?` <span class="muted" style="font-size:15px;font-weight:500">${c.parts.length>1?c.parts.join(' + ')+' = ':''}${tot} colis</span>`:'')}).join('<br>');
   const e0=ents[0],twoNum=e0&&e0.bldg&&splitAddress(e0.address).box;
-  $('#curAddr').textContent=s.address+(twoNum?`  →  immeuble n° ${e0.bldg}`:'');
+  $('#curAddr').textContent=s.address+(twoNum?`  →  n° ${e0.bldg}`:'');
   const np=stopParcels(s);
-  $('#curParcels').textContent=`📦 ${np} colis`+(cl.length>1?` · ${cl.length} clients à cette adresse`:'');
+  $('#curParcels').textContent=`📦 ${np}`+(cl.length>1?` · ${cl.length} clients`:'');
   $('#curStatus').innerHTML=s.status==='done'?'<span class="badge b-ok">✓ Livré</span>':s.status==='fail'?'<span class="badge b-bad">✗ Échec</span>':'';
   $('#resetStopBtn').style.display=s.status==='todo'?'none':'block';
   $('#wazeBtn').href=`https://waze.com/ul?ll=${s.lat},${s.lon}&navigate=yes`;
   $('#gmapsBtn').href=`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}&travelmode=driving`;
   const nx=nextTodo(state.current);
-  if(!todo.length)$('#nextInfo').innerHTML='🎉 <b>Tournée terminée !</b>';
-  else if(nx>=0&&nx!==state.current){$('#nextInfo').innerHTML=`Ensuite : <b>#${nx+1}</b> ${esc(clientsOfStop(st[nx]).map(c=>c.name).filter(Boolean).join(', '))} — ${esc(st[nx].address)}`}
+  if(!todo.length)$('#nextInfo').innerHTML='🏆 <b>Tournée terminée, bravo !</b>';
+  else if(nx>=0&&nx!==state.current){$('#nextInfo').innerHTML=`Ensuite → <b>#${nx+1}</b> ${esc(st[nx].address)}`}
   else $('#nextInfo').textContent='';
   $('#stopList').innerHTML=st.map((x,i)=>{const e=stopEntries(x),p=uniqPdas(e);
     return `<div class="it ${i===state.current?'cur':''} ${x.status!=='todo'?'done':''}" data-i="${i}">
@@ -1495,7 +1512,16 @@ function renderTour(){
       <div class="st">${x.status==='done'?'✅':x.status==='fail'?'❌':''}</div></div>`}).join('');
 }
 $('#stopList').addEventListener('click',e=>{const it=e.target.closest('.it');if(!it)return;state.current=+it.dataset.i;persist();renderTour();window.scrollTo({top:0,behavior:'smooth'})});
-function mark(status){const s=state.stops[state.current];if(!s)return;s.status=status;const nx=nextTodo(state.current);if(nx>=0)state.current=nx;persist();renderTour();window.scrollTo({top:0,behavior:'smooth'})}
+const CHEERS=['Bien joué 💪','Un de plus 🔥','Ça roule 🚀','Trop fort ⚡','Nickel ✨','En feu 🔥'];
+function mark(status){
+  const s=state.stops[state.current];if(!s)return;s.status=status;const nx=nextTodo(state.current);if(nx>=0)state.current=nx;persist();renderTour();window.scrollTo({top:0,behavior:'smooth'});
+  if(status!=='done')return;
+  try{navigator.vibrate&&navigator.vibrate(35)}catch(e){}
+  const st=state.stops,left=st.filter(x=>x.status==='todo').length,pct=Math.round((st.length-left)*100/st.length);
+  const prevPct=Math.round((st.length-left-1)*100/st.length),mile=[25,50,75].find(m=>prevPct<m&&pct>=m);
+  toast(!left?'🏆 Tournée terminée !':mile?`🎯 ${mile}% fait !`:left<=5?`Plus que ${left} 🏁`:CHEERS[Math.floor(Math.random()*CHEERS.length)],1600);
+  const h=$('#curCard');h.classList.remove('celebrate');void h.offsetWidth;h.classList.add('celebrate');
+}
 $('#doneBtn').onclick=()=>mark('done');
 $('#failBtn').onclick=()=>mark('fail');
 $('#prevBtn').onclick=()=>{if(state.current>0){state.current--;persist();renderTour()}};
