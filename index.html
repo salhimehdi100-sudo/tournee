@@ -383,6 +383,77 @@ function findColorBoxes(col,W,H){
   }
   return boxes;
 }
+/* photo sans couleur (écran en noir et blanc, impression…) : étiquettes = petits rectangles encadrés ou pleins */
+function findDarkBoxes(lum,W,H){
+  const I=new Float64Array((W+1)*(H+1));
+  for(let y=0;y<H;y++){let s=0;for(let x=0;x<W;x++){s+=lum[y*W+x];I[(y+1)*(W+1)+x+1]=I[y*(W+1)+x+1]+s}}
+  const mask=(r,test)=>{const M=new Uint8Array(W*H);
+    for(let y=0;y<H;y++){const ya=Math.max(0,y-r),yb=Math.min(H,y+r+1);for(let x=0;x<W;x++){
+      const xa=Math.max(0,x-r),xb=Math.min(W,x+r+1),m=(I[yb*(W+1)+xb]-I[ya*(W+1)+xb]-I[yb*(W+1)+xa]+I[ya*(W+1)+xa])/((yb-ya)*(xb-xa));
+      if(test(lum[y*W+x],m))M[y*W+x]=1}}
+    return M};
+  // étiquette encadrée/pleine (plus sombre que le voisinage) ou blanche (plus claire que la carte)
+  const cand=rectComps(mask(Math.max(8,Math.round(W/50)),(v,m)=>v<m*0.8-6),W,H)
+    .concat(rectComps(mask(Math.max(30,Math.round(W/15)),(v,m)=>v>m*1.1+4),W,H));
+  if(cand.length<2)return [];
+  // toutes les étiquettes ont la même taille : on garde celles proches de la taille médiane
+  const hs=cand.map(b=>b.y1-b.y0).sort((a,b)=>a-b),ws=cand.map(b=>b.x1-b.x0).sort((a,b)=>a-b);
+  const mh=hs[hs.length>>1],mw=ws[ws.length>>1];
+  const keep=cand.filter(b=>{const h=b.y1-b.y0,w=b.x1-b.x0;return h>mh*0.7&&h<mh*1.4&&w>mw*0.6&&w<mw*1.6});
+  // même étiquette trouvée deux fois (bord sombre + intérieur clair) : une seule
+  const out=[];
+  for(const b of keep){const o=out.find(a=>Math.min(a.x1,b.x1)>Math.max(a.x0,b.x0)&&Math.min(a.y1,b.y1)>Math.max(a.y0,b.y0));
+    if(o){o.x0=Math.min(o.x0,b.x0);o.y0=Math.min(o.y0,b.y0);o.x1=Math.max(o.x1,b.x1);o.y1=Math.max(o.y1,b.y1)}else out.push({...b})}
+  return out;
+}
+/* cartes en grille (2 colonnes…) : une étiquette ratée dans une rangée est déduite de la rangée voisine complète */
+function completeGrid(boxes){
+  if(boxes.length<3)return boxes;
+  const mh=boxes.map(b=>b.y1-b.y0).sort((a,b)=>a-b)[boxes.length>>1];
+  const rows=[];
+  boxes.slice().sort((a,b)=>a.y0-b.y0).forEach(b=>{const r=rows.find(r=>Math.abs(r.y-b.y0)<mh*0.8);if(r){r.b.push(b);r.y=r.b.reduce((s,x)=>s+x.y0,0)/r.b.length}else rows.push({y:b.y0,b:[b]})});
+  rows.forEach(r=>r.b.sort((a,b)=>a.x0-b.x0));
+  const K=Math.max(...rows.map(r=>r.b.length));
+  if(K<2||rows.filter(r=>r.b.length===K).length<2)return boxes;
+  const out=boxes.slice();
+  for(const r of rows){
+    if(r.b.length>=K)continue;
+    const ref=rows.filter(x=>x.b.length===K).sort((a,b)=>Math.abs(a.y-r.y)-Math.abs(b.y-r.y))[0];
+    // chaque étiquette présente -> colonne la plus proche dans la rangée de référence
+    const used=new Set(),pairs=[];
+    for(const b of r.b){let j=-1,bd=1e9;ref.b.forEach((q,k)=>{const d=Math.abs(q.x0-b.x0);if(!used.has(k)&&d<bd){bd=d;j=k}});if(j>=0&&bd<(ref.b[1].x0-ref.b[0].x0)*0.5){used.add(j);pairs.push([b,ref.b[j]])}}
+    if(!pairs.length)continue;
+    const dx=pairs.reduce((s,[b,q])=>s+b.x0-q.x0,0)/pairs.length,dy=pairs.reduce((s,[b,q])=>s+b.y0-q.y0,0)/pairs.length;
+    ref.b.forEach((q,k)=>{if(!used.has(k))out.push({x0:Math.round(q.x0+dx),y0:Math.round(q.y0+dy),x1:Math.round(q.x1+dx),y1:Math.round(q.y1+dy),guess:true})});
+  }
+  return out;
+}
+/* composantes en forme de petit rectangle : 4 bords marqués ou surface bien remplie */
+function rectComps(dark,W,H){
+  const seen=new Uint8Array(W*H),st=new Int32Array(W*H),cand=[];
+  const minH=W*0.012,maxH=W*0.07;
+  for(let i=0;i<W*H;i++){
+    if(!dark[i]||seen[i])continue;
+    let x0=1e9,y0=1e9,x1=-1,y1=-1,sp=0,n=0;st[sp++]=i;seen[i]=1;
+    while(sp){const k=st[--sp],x=k%W,y=(k/W)|0;n++;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;
+      if(x>0&&dark[k-1]&&!seen[k-1]){seen[k-1]=1;st[sp++]=k-1}
+      if(x<W-1&&dark[k+1]&&!seen[k+1]){seen[k+1]=1;st[sp++]=k+1}
+      if(y>0&&dark[k-W]&&!seen[k-W]){seen[k-W]=1;st[sp++]=k-W}
+      if(y<H-1&&dark[k+W]&&!seen[k+W]){seen[k+W]=1;st[sp++]=k+W}}
+    const bw=x1-x0+1,bh=y1-y0+1;
+    if(bh<minH||bh>maxH||bw<bh*1.1||bw>bh*4.5)continue;
+    // les 4 bords du rectangle doivent être sombres (coins arrondis tolérés)
+    const t=Math.max(2,Math.round(bh*0.12)),rc=Math.round(bh*0.3);
+    const edge=(ax,ay,bx,by,horiz)=>{let ok=0,n=0;
+      if(horiz){for(let x=x0+rc;x<=x1-rc;x++){n++;for(let y=ay;y<=by;y++)if(dark[y*W+x]){ok++;break}}}
+      else{for(let y=y0+rc;y<=y1-rc;y++){n++;for(let x=ax;x<=bx;x++)if(dark[y*W+x]){ok++;break}}}
+      return n?ok/n:0};
+    const filled=n/(bw*bh)>0.6;
+    if(!filled&&(edge(0,y0,0,y0+t,1)<0.75||edge(0,y1-t,0,y1,1)<0.75||edge(x0,0,x0+t,0,0)<0.75||edge(x1-t,0,x1,0,0)<0.75))continue;
+    cand.push({x0,y0,x1:x1+1,y1:y1+1});
+  }
+  return cand;
+}
 /* lit le n° dans chaque étiquette (lecture d'une seule ligne, lettres et chiffres seulement) */
 async function readTags(w,canvas,boxes){
   if(!boxes.length)return [];
@@ -407,6 +478,8 @@ async function readTags(w,canvas,boxes){
   const parsed=out.map(t=>splitTag(t.raw));
   fillSequence(parsed);
   const votes={};parsed.forEach(p=>{if(p.L&&p.L!=='O')votes[p.L]=(votes[p.L]||0)+1});
+  // « 05 », « O7 » : un D mal lu (le rond du D) -> petite voix pour D
+  out.forEach(t=>{if(/^[O0]\d/.test(String(t.raw).toUpperCase()))votes.D=(votes.D||0)+0.5});
   state.entries.forEach(e=>{const m=String(e.pda||'').match(/^([A-Z])\d/);if(m&&m[1]!=='O')votes[m[1]]=(votes[m[1]]||0)+0.5});
   const L=Object.keys(votes).sort((a,b)=>votes[b]-votes[a])[0]||'';
   out.forEach((t,i)=>{t.t=parsed[i].dg?L+parsed[i].dg:''});
@@ -432,10 +505,32 @@ async function readCards(w,canvas,tags){
       const {data}=await w.recognize(c);
       const body=(data.text||'').trim();
       pieces.push(t.t+'\n'+body);
-      const p=parsePage(t.t+'\n'+body);if(p)list.push(p);
+      const p=parsePage(t.t+'\n'+body);
+      // nom (petit texte gris) pas lu : 2e lecture de la carte agrandie, contraste réglé sur la carte seule
+      if(p&&!plausibleName(fixName(p.name))&&canvas._orig){
+        try{const {data:d2}=await w.recognize(cardCrop(canvas._orig,x0,y0,x1,y1));const p2=parsePage(t.t+'\n'+(d2.text||''));
+          if(p2&&plausibleName(fixName(p2.name)))p.name=p2.name;pieces.push('(2e lecture) '+(d2.text||'').trim())}catch(e){}
+      }
+      if(p)list.push(p);
     }
   }finally{await w.setParameters({tessedit_pageseg_mode:'3'})}
   return {list,text:pieces.join('\n\n')};
+}
+/* carte agrandie x2, niveaux de gris étirés sur la carte seule (texte gris pâle -> noir) */
+function cardCrop(src,x0,y0,x1,y1){
+  const k=2,pad=20,c=document.createElement('canvas');c.width=(x1-x0)*k+2*pad;c.height=(y1-y0)*k+2*pad;
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.imageSmoothingQuality='high';x.drawImage(src,x0,y0,x1-x0,y1-y0,pad,pad,(x1-x0)*k,(y1-y0)*k);
+  const W=c.width,H=c.height,im=x.getImageData(0,0,W,H),d=im.data,g=new Float32Array(W*H),s=new Float32Array(W*H);
+  let sum=0;for(let p=0;p<W*H;p++){g[p]=d[p*4]*0.299+d[p*4+1]*0.587+d[p*4+2]*0.114;sum+=g[p]}
+  const inv=sum/(W*H)<110;if(inv)for(let p=0;p<W*H;p++)g[p]=255-g[p];
+  // léger flou (grain de l'écran photographié), puis seuil local : texte = plus foncé que son voisinage
+  for(let y=0;y<H;y++)for(let X=0;X<W;X++){let t=0,n=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const yy=y+dy,xx=X+dx;if(yy>=0&&yy<H&&xx>=0&&xx<W){t+=g[yy*W+xx];n++}}s[y*W+X]=t/n}
+  const r=14,I=new Float64Array((W+1)*(H+1));
+  for(let y=0;y<H;y++){let a=0;for(let X=0;X<W;X++){a+=s[y*W+X];I[(y+1)*(W+1)+X+1]=I[y*(W+1)+X+1]+a}}
+  for(let y=0;y<H;y++){const ya=Math.max(0,y-r),yb=Math.min(H,y+r+1);for(let X=0;X<W;X++){
+    const xa=Math.max(0,X-r),xb=Math.min(W,X+r+1),m=(I[yb*(W+1)+xb]-I[ya*(W+1)+xb]-I[yb*(W+1)+xa]+I[ya*(W+1)+xa])/((yb-ya)*(xb-xa));
+    const v=s[y*W+X]<m-10?0:255,i=(y*W+X)*4;d[i]=d[i+1]=d[i+2]=v;d[i+3]=255}}
+  x.putImageData(im,0,0);return c;
 }
 /* découpe l'étiquette dans la photo d'origine, couleurs inversées, noir et blanc */
 function tagCrop(src,b,kH){
@@ -444,8 +539,12 @@ function tagCrop(src,b,kH){
   const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(src,b.x0-m,b.y0-m,sw,sh,pad,pad,sw*k,sh*k);
   const im=x.getImageData(0,0,c.width,c.height),d=im.data,g=new Float32Array(d.length/4);
   const inside=p=>{const px=p%c.width,py=(p/c.width)|0;return px>=pad&&py>=pad&&px<c.width-pad&&py<c.height-pad};
+  // fond clair (étiquette encadrée) : texte foncé, on n'inverse pas ; fond foncé (étiquette pleine) : on inverse
+  let sum=0,cnt=0;
+  for(let i=0,p=0;i<d.length;i+=4,p++)if(inside(p)){sum+=d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114;cnt++}
+  const inv=cnt&&sum/cnt<140;
   let lo=255,hi=0;
-  for(let i=0,p=0;i<d.length;i+=4,p++){const v=255-(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114);g[p]=v;if(inside(p)){if(v<lo)lo=v;if(v>hi)hi=v}}
+  for(let i=0,p=0;i<d.length;i+=4,p++){const L=d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114,v=inv?255-L:L;g[p]=v;if(inside(p)){if(v<lo)lo=v;if(v>hi)hi=v}}
   const thr=lo+(hi-lo)*0.3;
   for(let i=0,p=0;i<d.length;i+=4,p++){const v=inside(p)&&g[p]<thr?0:255;d[i]=d[i+1]=d[i+2]=v;d[i+3]=255}
   x.putImageData(im,0,0);return c;
@@ -455,9 +554,11 @@ function fillSequence(parsed){
   const known=parsed.map((p,i)=>p.dg?{i,v:+p.dg}:null).filter(Boolean);
   if(known.length<2)return;
   const cnt={};known.forEach(k=>{const o=k.v-k.i;cnt[o]=(cnt[o]||0)+1});
-  const [best,n]=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
+  const ranked=Object.entries(cnt).sort((a,b)=>b[1]-a[1]);
+  const [best,n]=ranked[0],second=ranked[1]?ranked[1][1]:0;
   const off=+best;
-  if(n<2||n/known.length<0.5)return;
+  // décalage le plus fréquent, nettement devant les autres
+  if(n<2||n<=second||n/known.length<0.3)return;
   parsed.forEach((p,i)=>{const v=i+off;if(!p.dg&&v>=1)p.dg=String(v)});
   // un n° qui casse l'ordre croissant (« D343 » entre D32 et D34) est remplacé par la valeur attendue
   if(n<3)return;
@@ -492,12 +593,15 @@ async function preprocess(src){
   const img=ctx.getImageData(0,0,c.width,c.height),d=img.data;
   // étiquettes colorées (ex. « D27 » blanc sur bleu) : fond coloré -> blanc, texte clair dedans -> noir
   const W=c.width,H=c.height,D=Math.max(8,Math.round(W*0.025));
-  const col=new Uint8Array(W*H),light=new Uint8Array(W*H);
+  const col=new Uint8Array(W*H),light=new Uint8Array(W*H),lumA=new Uint8Array(W*H);
   for(let p=0,i=0;p<W*H;p++,i+=4){
     const r=d[i],g=d[i+1],b=d[i+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b),lum=r*0.299+g*0.587+b*0.114;
+    lumA[p]=lum;
     if(mx-mn>70&&lum<190)col[p]=1;else if(lum>165&&mx-mn<60)light[p]=1;
   }
-  const boxes=findColorBoxes(col,W,H);
+  let boxes=findColorBoxes(col,W,H);
+  if(boxes.length<2){const gb=findDarkBoxes(lumA,W,H);if(gb.length>=2)boxes=gb}
+  boxes=completeGrid(boxes).filter(b=>b.x0>=0&&b.y0>=0&&b.x1<=W&&b.y1<=H);
   // masque élargi de 2 px : le contour flou de l'étiquette devient blanc aussi
   const dil=new Uint8Array(W*H),tmp=new Uint8Array(W*H),R=2;
   for(let y=0;y<H;y++){const row=y*W;for(let x=0;x<W;x++){let v=0;for(let k=-R;k<=R&&!v;k++){const xx=x+k;if(xx>=0&&xx<W&&col[row+xx])v=1}tmp[row+x]=v}}
@@ -803,7 +907,16 @@ function fixNameTok(t){
   }
   return ch.join('');
 }
-function fixName(n){return String(n||'').replace(/[^\s\-,]+/g,fixNameTok).replace(/^[^\p{L}]+|[^\p{L}.]+$/gu,'').replace(/\s+/g,' ').trim()}
+function fixName(n){
+  let s=String(n||'').replace(/[^\s\-,]+/g,fixNameTok).replace(/^[^\p{L}]+|[^\p{L}.]+$/gu,'').replace(/\s+/g,' ').trim();
+  s=s.replace(/\s+[—–-]\s+.*$/u,'')                                  // « Nicolas Claes — qq »
+     .replace(/(\p{Ll}{2,})(\p{Lu}\p{Ll}{2,})/gu,'$1 $2');               // « JuliePeeters »
+  // « Julie Peeters LS » : bout en MAJUSCULES collé à un nom en minuscules
+  if(/\p{Ll}/u.test(s))s=s.replace(/(\s+\p{Lu}{1,2})+$/u,'');
+  // taches lues comme lettres isolées en début/fin (« Marie Lefèvre í »)
+  for(let k=0;k<3;k++)s=s.replace(/\s+\p{L}$/u,'').replace(/^\p{L}\s+(?=\p{L}{2})/u,'').replace(/^[^\p{L}]+|[^\p{L}.]+$/gu,'').trim();
+  return s;
+}
 /* code postal inconnu mais commune lisible : « 1O7O Anderlecht » « 1007 Anderlecht » -> 1070 */
 function fixPcText(a){
   const s=splitAddress(a);
@@ -966,7 +1079,8 @@ function parseAuto(text){
 function plausibleName(n){
   n=String(n||'').trim();if(!n)return false;
   const w=n.split(/\s+/).filter(x=>/\p{L}/u.test(x));
-  if(!w.length||w.length>4||norm(n).replace(/\s/g,'').length<4)return false;
+  if(!w.length||w.length>4||norm(n).replace(/\s/g,'').length<4||/(\p{L})\1\1/iu.test(n)||/\d/.test(n))return false;
+  if((n.match(/[^\p{L}\s.'’\-]/gu)||[]).length>1)return false; // « purs 20 ; : oi »
   const short=w.filter(x=>x.replace(/[^\p{L}]/gu,'').length<=2).length;
   if(w.length>=3&&short*2>=w.length)return false;
   if(w.every(x=>x.replace(/[^\p{L}]/gu,'').length<=2))return false;
