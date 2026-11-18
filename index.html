@@ -143,8 +143,16 @@ details[open] summary{margin-bottom:8px}
 #scanFlash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .12s}
 .scanTop{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));background:rgba(0,0,0,.55);color:#fff;font-weight:800}
 .scanBottom{padding:14px 16px calc(18px + env(safe-area-inset-bottom));background:rgba(0,0,0,.75);color:#fff}
-#scanLast{font-size:14px;min-height:40px;margin-bottom:10px}
-#scanShot{width:100%;font-size:22px;padding:20px}
+#scanThumbs{display:flex;gap:8px;overflow-x:auto;min-height:64px;margin-bottom:12px;scrollbar-width:none}
+#scanThumbs:empty::before{content:"Les photos s'accumulent ici";color:rgba(255,255,255,.55);font-size:14px;margin:auto}
+.thumb{position:relative;flex:none;width:48px;height:64px;border-radius:10px;overflow:hidden;border:2px solid rgba(255,255,255,.35)}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb.ok{border-color:var(--ok)}.thumb.ko{border-color:var(--bad)}
+.thumb button{position:absolute;top:0;right:0;width:20px;height:20px;border:0;border-radius:0 0 0 8px;background:rgba(0,0,0,.65);color:#fff;font-size:14px;line-height:20px;padding:0}
+.scanBar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px}
+.scanBar #scanOk{justify-self:end}
+#scanShot{width:76px;height:76px;border-radius:50%;border:5px solid #fff;background:linear-gradient(140deg,var(--accent),var(--accent2));box-shadow:0 0 0 3px rgba(255,255,255,.25);cursor:pointer}
+#scanShot:active{transform:scale(.92)}
 .box{display:inline-block;background:var(--warn-bg);color:var(--warn);font-weight:800;border-radius:8px;padding:2px 8px;margin-left:6px;font-size:14px}
 .empty{text-align:center;padding:28px 16px}
 .i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
@@ -217,11 +225,8 @@ nav.tabs .i{width:22px;height:22px}
   <div class="card">
     <h2><span class="step">2</span>Scanner le PDA</h2>
     <button class="btn primary big" style="width:100%" id="scanBtn"><svg class="i"><use href="#i-camera"/></svg>Scanner</button>
-    <div class="tools">
-      <label class="btn" style="cursor:pointer"><svg class="i"><use href="#i-camera"/></svg>Photo
-        <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
-      </label>
-      <label class="btn" style="cursor:pointer"><svg class="i"><use href="#i-image"/></svg>Galerie
+    <div class="tools" style="grid-template-columns:1fr">
+      <label class="btn" style="cursor:pointer"><svg class="i"><use href="#i-image"/></svg>Depuis la galerie
         <input type="file" id="galleryInput" accept="image/*" multiple style="display:none">
       </label>
     </div>
@@ -325,10 +330,14 @@ nav.tabs .i{width:22px;height:22px}
 <div id="scanner">
   <video id="scanVideo" playsinline muted autoplay></video>
   <div id="scanFlash"></div>
-  <div class="scanTop"><span id="scanCount"></span><button class="btn" id="scanClose">Terminer</button></div>
+  <div class="scanTop"><button class="btn" id="scanClose">Annuler</button><span id="scanCount"></span></div>
   <div class="scanBottom">
-    <div id="scanLast"></div>
-    <button class="btn primary big" id="scanShot"><svg class="i"><use href="#i-camera"/></svg>Capturer</button>
+    <div id="scanThumbs"></div>
+    <div class="scanBar">
+      <span></span>
+      <button id="scanShot" title="Prendre la photo"></button>
+      <button class="btn primary" id="scanOk" disabled>Valider</button>
+    </div>
   </div>
 </div>
 
@@ -522,7 +531,7 @@ async function readTags(w,canvas,boxes){
   out.forEach(t=>{if(/^[O0]\d/.test(String(t.raw).toUpperCase()))votes.D=(votes.D||0)+0.5});
   state.entries.forEach(e=>{const m=String(e.pda||'').match(/^([A-Z])\d/);if(m&&m[1]!=='O')votes[m[1]]=(votes[m[1]]||0)+0.5});
   const L=Object.keys(votes).sort((a,b)=>votes[b]-votes[a])[0]||'';
-  out.forEach((t,i)=>{t.t=parsed[i].dg?L+parsed[i].dg:''});
+  out.forEach((t,i)=>{t.t=parsed[i].dg?L+parsed[i].dg:'';t.sure=!!parsed[i].sure;t.readDg=parsed[i].read||'';t.L=L});
   return out;
 }
 /* zone de chaque carte : sous son étiquette, jusqu'à l'étiquette voisine (à droite) et celle du dessous */
@@ -551,7 +560,10 @@ async function readCards(w,canvas,tags){
         try{const {data:d2}=await w.recognize(cardCrop(canvas._orig,x0,y0,x1,y1));const p2=parsePage(t.t+'\n'+(d2.text||''));
           if(p2&&plausibleName(fixName(p2.name)))p.name=p2.name;pieces.push('(2e lecture) '+(d2.text||'').trim())}catch(e){}
       }
-      if(p)list.push(p);
+      // dernière carte de la colonne, qui touche le bas de la photo, sans nom lu : sans doute coupée -> ignorée
+      // (elle sera lue en entier sur la photo suivante)
+      if(p&&!below&&y1>=H-th&&!plausibleName(fixName(p.name))){pieces.push('(carte coupée ignorée)');continue}
+      if(p){p.pdaSure=!!t.sure;p.ti=tags.indexOf(t);list.push(p)}
     }
   }finally{await w.setParameters({tessedit_pageseg_mode:'3'})}
   return {list,text:pieces.join('\n\n')};
@@ -590,25 +602,34 @@ function tagCrop(src,b,kH){
   x.putImageData(im,0,0);return c;
 }
 /* les n° se suivent à l'écran : un n° illisible (ou aberrant) est déduit de ses voisins */
+let seqStep=1;
 function fillSequence(parsed){
+  parsed.forEach(p=>{p.read=p.dg;p.sure=false});
   const known=parsed.map((p,i)=>p.dg?{i,v:+p.dg}:null).filter(Boolean);
   if(known.length<2)return;
-  const cnt={};known.forEach(k=>{const o=k.v-k.i;cnt[o]=(cnt[o]||0)+1});
-  const ranked=Object.entries(cnt).sort((a,b)=>b[1]-a[1]);
-  const [best,n]=ranked[0],second=ranked[1]?ranked[1][1]:0;
-  const off=+best;
-  // décalage le plus fréquent, nettement devant les autres
+  // n° = départ + pas × position ; pas 1 (liste complète) ou 2 (une seule colonne d'une grille de 2)…
+  // à égalité, le pas déjà constaté sur les photos précédentes l'emporte
+  let best=null;
+  for(const step of [1,2,3]){
+    const cnt={};known.forEach(k=>{const o=k.v-step*k.i;cnt[o]=(cnt[o]||0)+1});
+    const ranked=Object.entries(cnt).sort((a,b)=>b[1]-a[1]);
+    const n=ranked[0][1],second=ranked[1]?ranked[1][1]:0,score=n+(step===seqStep?0.5:0);
+    if(!best||score>best.score)best={step,off:+ranked[0][0],n,second,score};
+  }
+  const {step,off,n,second}=best,exp=i=>off+step*i;
+  // suite la plus fréquente, nettement devant les autres
   if(n<2||n<=second||n/known.length<0.3)return;
-  parsed.forEach((p,i)=>{const v=i+off;if(!p.dg&&v>=1)p.dg=String(v)});
-  // un n° qui casse l'ordre croissant (« D343 » entre D32 et D34) est remplacé par la valeur attendue
-  if(n<3)return;
-  const sure=parsed.map((p,i)=>+p.dg===i+off);
+  if(n>=3)seqStep=step; // pas confirmé : retenu pour les photos suivantes
+  parsed.forEach((p,i)=>{if(+p.dg===exp(i))p.sure=true});
+  parsed.forEach((p,i)=>{if(!p.dg&&exp(i)>=1)p.dg=String(exp(i))});
+  // n° aberrant (« D222 » au milieu de D22, D24) : remplacé par la valeur attendue
+  if(n<3){parsed.forEach((p,i)=>{if(!p.sure&&Math.abs(+p.dg-exp(i))>step*5&&exp(i)>=1)p.dg=String(exp(i))});return}
   for(let i=0;i<parsed.length;i++){
-    if(sure[i])continue;
-    let a=i-1;while(a>=0&&!sure[a])a--;
-    let b=i+1;while(b<parsed.length&&!sure[b])b++;
-    const v=+parsed[i].dg,lo=a>=0?a+off:-Infinity,hi=b<parsed.length?b+off:Infinity,exp=i+off;
-    if(!(v>lo&&v<hi)&&exp>=1)parsed[i].dg=String(exp);
+    if(parsed[i].sure)continue;
+    let a=i-1;while(a>=0&&!parsed[a].sure)a--;
+    let b=i+1;while(b<parsed.length&&!parsed[b].sure)b++;
+    const v=+parsed[i].dg,lo=a>=0?exp(a):-Infinity,hi=b<parsed.length?exp(b):Infinity;
+    if(!(v>lo&&v<hi)&&exp(i)>=1)parsed[i].dg=String(exp(i));
   }
 }
 /* « D27 », « O27 », « 027 », « DZ7 » -> {L:'D', dg:'27'} */
@@ -693,13 +714,35 @@ async function photoClear(){try{const db=await photoDb();const tx=db.transaction
 async function photoCount(){const el=$('#photoCount');if(el)el.textContent=(await photoAll()).length}
 /* Lit une image (photo, fichier ou capture caméra) = une page du PDA */
 async function ocrPage(src){
+  const r=await ocrRead(src);
+  if(!r.list.length)return {ok:false,text:r.text};
+  const m=mergeParsed(r.list);
+  return {ok:true,list:r.list,added:m.added,dup:m.dup};
+}
+/* n° de tour revus avec les colis déjà scannés : une carte déjà connue (même immeuble, n° sûr) sert de repère
+   pour déduire les n° illisibles de ses voisines sur la même photo */
+function resequence(list,tags){
+  if(!list.length||!state.entries.length)return;
+  const slots=tags.map(t=>({dg:t.readDg||'',L:t.L||''}));
+  let anchors=0;
+  list.forEach(p=>{
+    const s=slots[p.ti];if(!s)return;
+    const e=state.entries.find(e=>e.pda&&e.pdaSure!==false&&sameBuilding(e.address,fixAddress(p.address)));
+    if(e){s.dg=e.pda.replace(/^\D+/,'');s.L=e.pda.replace(/\d+$/,'')||s.L;s.anchor=true;anchors++}
+  });
+  if(!anchors)return;
+  fillSequence(slots);
+  list.forEach(p=>{const s=slots[p.ti];if(s&&s.dg&&(s.sure||s.anchor)){p.pda=s.L+s.dg;p.pdaSure=true}});
+}
+/* lecture seule (sans ajout à la liste) */
+async function ocrRead(src){
   const w=await getWorker();
   const canvas=await preprocess(src);
   photoSave(canvas._orig||canvas);
   // 1) étiquettes colorées (D27…) repérées par la couleur -> chaque carte lue séparément
   let tags=[],list=null,text='';
-  try{tags=(await readTags(w,canvas,canvas._boxes||[])).filter(t=>t.t)}catch(e){tags=[]}
-  if(tags.length){try{const r=await readCards(w,canvas,tags);list=r.list;text=r.text}catch(e){list=null}}
+  try{tags=await readTags(w,canvas,canvas._boxes||[])}catch(e){tags=[]}
+  if(tags.some(t=>t.t)){try{const r=await readCards(w,canvas,tags);list=r.list;text=r.text;resequence(list,tags)}catch(e){list=null}}
   // 2) sinon lecture de toute la photo
   if(!list||!list.length){
     const {data}=await w.recognize(canvas,{},{text:true,blocks:true});
@@ -708,9 +751,7 @@ async function ocrPage(src){
     if(!list||!list.length)list=parseMulti(text);
   }
   const raw=$('#rawText');raw.value=(raw.value?raw.value+'\n\n':'')+text.trim();
-  if(!list.length)return {ok:false,text};
-  const r=mergeParsed(list);
-  return {ok:true,list,added:r.added,dup:r.dup};
+  return {list:list||[],text};
 }
 function collectWords(data){
   const out=[];
@@ -787,52 +828,78 @@ async function handlePhotos(files){
   }catch(e){$('#ocrStatus').textContent='Erreur de lecture : '+(e.message||e)+' (connexion internet nécessaire la 1re fois)'}
   prog('#ocrProg',null);
 }
-$('#photoInput').onchange=e=>{handlePhotos([...e.target.files]);e.target.value=''};
 $('#galleryInput').onchange=e=>{handlePhotos([...e.target.files]);e.target.value=''};
 $('#parseBtn').onclick=()=>{const r=mergeParsed(parseAuto($('#rawText').value));toast(`${r.added} ligne(s) ajoutée(s)`+(r.dup?`, ${r.dup} doublon(s) possible(s)`:''))};
 
-/* ---------- Mode scan rapide : caméra ouverte en continu ---------- */
-let scanStream=null,scanQueue=[],scanBusy=false,scanStats={shot:0,ok:0,fail:0};
+/* ---------- Scanner : on enchaîne les photos, elles s'accumulent, puis on valide ---------- */
+// La lecture se fait en arrière-plan pendant qu'on photographie ; rien n'est ajouté à la liste avant « Valider ».
+let scanStream=null,scanShots=[],scanBusy=false;
 async function openScanner(){
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){toast('Caméra directe indisponible ici : utilise « Photo du PDA ».',4000);return}
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){toast('Caméra indisponible ici : utilise Galerie.',4000);return}
   try{
     scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
-  }catch(e){toast('Accès caméra refusé ou impossible (il faut ouvrir l’app en https).',4500);return}
+  }catch(e){toast('Accès caméra refusé.',4000);return}
   const v=$('#scanVideo');v.srcObject=scanStream;await v.play().catch(()=>{});
-  scanStats={shot:0,ok:0,fail:0};updateScanInfo();$('#scanLast').textContent='Cadre l’écran du PDA puis appuie sur Capturer.';
+  scanShots=[];renderShots();
   $('#scanner').style.display='flex';requestWake();
   getWorker().catch(()=>{});
 }
-function closeScanner(){
-  if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null}
-  $('#scanner').style.display='none';
-  if(scanQueue.length||scanBusy)$('#ocrStatus').textContent='Lecture des dernières captures en cours…';
+function stopCamera(){if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null}$('#scanner').style.display='none'}
+function liveShots(){return scanShots.filter(s=>!s.removed)}
+function renderShots(){
+  const live=liveShots(),n=live.length,done=live.filter(s=>s.done).length;
+  $('#scanCount').textContent=n?`${n} photo${n>1?'s':''}`+(done<n?` · lecture ${done}/${n}`:''):'Cadre le PDA';
+  $('#scanOk').textContent=n?`Valider (${n})`:'Valider';$('#scanOk').disabled=!n;
+  $('#scanThumbs').innerHTML=live.map(s=>`<div class="thumb${s.done?(s.res&&s.res.list.length?' ok':' ko'):''}" data-k="${s.k}"><img src="${s.thumb}" alt=""><button data-del="${s.k}" title="Retirer">×</button></div>`).join('');
+  const t=$('#scanThumbs');t.scrollLeft=t.scrollWidth;
 }
-function updateScanInfo(){$('#scanCount').textContent=`${scanStats.shot} photo(s) · ${scanStats.ok} lue(s)`+(scanStats.fail?` · ${scanStats.fail} illisible(s)`:'')+(scanQueue.length||scanBusy?` · ${scanQueue.length+(scanBusy?1:0)} en cours`:'')}
+let shotKey=0;
 function captureFrame(){
   const v=$('#scanVideo');if(!v.videoWidth)return;
   const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
-  scanQueue.push(c);scanStats.shot++;
-  try{navigator.vibrate&&navigator.vibrate(40)}catch(e){}
+  const tc=document.createElement('canvas'),k=96/Math.max(c.width,c.height);tc.width=Math.round(c.width*k);tc.height=Math.round(c.height*k);tc.getContext('2d').drawImage(c,0,0,tc.width,tc.height);
+  scanShots.push({k:++shotKey,c,thumb:tc.toDataURL('image/jpeg',0.7),res:null,done:false,removed:false});
+  try{navigator.vibrate&&navigator.vibrate(30)}catch(e){}
   const f=$('#scanFlash');f.style.opacity=1;setTimeout(()=>f.style.opacity=0,120);
-  updateScanInfo();processScanQueue();
+  renderShots();processShots();
 }
-async function processScanQueue(){
+async function processShots(){
   if(scanBusy)return;scanBusy=true;
-  while(scanQueue.length){
-    const c=scanQueue.shift();updateScanInfo();
-    try{const r=await ocrPage(c);
-      if(r.ok){scanStats.ok+=r.added;$('#scanLast').textContent=''+pageSummary(r)}
-      else{scanStats.fail++;$('#scanLast').textContent='Page illisible — recapture-la (plus près, sans reflet).'}
-    }catch(e){scanStats.fail++;$('#scanLast').textContent=''+(e.message||e)}
-    updateScanInfo();
-  }
-  scanBusy=false;updateScanInfo();
-  if(!scanStream)$('#ocrStatus').innerHTML=`${scanStats.ok} page(s) lue(s)`+(scanStats.fail?`, <b>${scanStats.fail} illisible(s)</b>`:'')+'. <b>Vérifie la liste ci-dessous.</b>';
+  try{
+    for(let s;(s=scanShots.find(x=>!x.done&&!x.removed));){
+      try{s.res=await ocrRead(s.c)}catch(e){s.res={list:[],text:''}}
+      s.done=true;s.c=null;renderShots();if(scanWaiter)scanWaiter();
+    }
+  }finally{scanBusy=false}
 }
+let scanWaiter=null;
+async function validateShots(){
+  const shots=liveShots();if(!shots.length)return;
+  stopCamera();prog('#ocrProg',0);
+  // on attend la fin des lectures en cours
+  while(shots.some(s=>!s.done)){
+    const d=shots.filter(s=>s.done).length;
+    $('#ocrStatus').textContent=`Lecture ${d}/${shots.length}…`;prog('#ocrProg',d/shots.length);
+    await new Promise(r=>{scanWaiter=r;setTimeout(r,1500)});processShots();
+  }
+  scanWaiter=null;prog('#ocrProg',null);
+  // ajout dans l'ordre des photos : une carte vue sur 2 photos est fusionnée
+  let added=0,dup=0,fails=0;
+  for(const s of shots){if(s.res&&s.res.list.length){const m=mergeParsed(s.res.list);added+=m.added;dup+=m.dup}else fails++}
+  scanShots=[];
+  const toCheck=state.entries.filter(e=>Object.keys(entryIssues(e)).length).length;
+  $('#ocrStatus').innerHTML=`<b>${added}</b> colis ajouté${added>1?'s':''}`+(dup?` · ${dup} déjà vu${dup>1?'s':''}`:'')+(fails?` · <b>${fails} photo${fails>1?'s':''} illisible${fails>1?'s':''}</b>`:'')+(toCheck?` · <b>${toCheck} à vérifier</b>`:'');
+  toast(`${added} colis ajouté${added>1?'s':''}`);
+}
+function cancelShots(){
+  if(liveShots().length&&!confirm('Abandonner ces photos ?'))return;
+  scanShots.forEach(s=>s.removed=true);scanShots=[];stopCamera();
+}
+$('#scanThumbs').addEventListener('click',e=>{const b=e.target.closest('[data-del]');if(!b)return;const s=scanShots.find(x=>x.k===+b.dataset.del);if(s){s.removed=true;s.c=null}renderShots()});
 $('#scanBtn').onclick=openScanner;
 $('#scanShot').onclick=captureFrame;
-$('#scanClose').onclick=closeScanner;
+$('#scanOk').onclick=validateShots;
+$('#scanClose').onclick=cancelShots;
 $('#addManual').onclick=()=>{state.entries.push({id:uid(),pda:null,name:'',address:'',parcels:1,lat:null,lon:null,geo:null});persist();renderEntries();const l=document.querySelectorAll('#entries .entry');if(l.length)l[l.length-1].scrollIntoView({behavior:'smooth'})};
 
 /* Analyse du texte : un bloc = (n° PDA) + nom + rue numéro + code postal ville */
@@ -949,7 +1016,8 @@ function fixNameTok(t){
 }
 function fixName(n){
   let s=String(n||'').replace(/[^\s\-,]+/g,fixNameTok).replace(/^[^\p{L}]+|[^\p{L}.]+$/gu,'').replace(/\s+/g,' ').trim();
-  s=s.replace(/\s+[—–-]\s+.*$/u,'')                                  // « Nicolas Claes — qq »
+  s=s.replace(/(^|\s)[^\p{L}\s]+(?=\p{L})/gu,'$1')                    // « )ubois »
+     .replace(/\s+[—–-]\s+.*$/u,'')                                  // « Nicolas Claes — qq »
      .replace(/(\p{Ll}{2,})(\p{Lu}\p{Ll}{2,})/gu,'$1 $2');               // « JuliePeeters »
   // « Julie Peeters LS » : bout en MAJUSCULES collé à un nom en minuscules
   if(/\p{Ll}/u.test(s))s=s.replace(/(\s+\p{Lu}{1,2})+$/u,'');
@@ -998,7 +1066,7 @@ function entryIssues(e){
   if(!s.street||!/[A-Za-zÀ-ÿ]{3,}/.test(s.street))out.address='rue';
   else if(!s.num)out.address='n° de maison';
   else if(s.pc&&!COMMUNES[s.pc])out.address='code postal';
-  if(e.pda==null||!/\d/.test(e.pda))out.pda='n° de tour';
+  if(e.pda==null||!/\d/.test(e.pda)||e.pdaSure===false)out.pda='n° de tour';
   if((+e.parcels||1)>20)out.parcels='nombre de colis';
   return out;
 }
@@ -1141,15 +1209,20 @@ function mergeParsed(list){
     p.address=fixAddress(p.address);p.name=fixName(p.name);
     if(!plausibleName(p.name))p.name='';
     if(!usableAddress(p.address))continue; // fragment (ligne coupée, commune seule) : ignoré
-    const pda=p.pda==null?null:String(p.pda);
+    let pda=p.pda==null?null:String(p.pda);
+    const sureP=p.pdaSure!==false; // texte collé / saisi : n° considéré comme sûr
     // même n° de tour + adresse ou nom proche = même page relue -> nouvelle lecture ajoutée au vote, pas de doublon
     let same=pda&&/\d/.test(pda)&&state.entries.find(e=>e.pda===pda&&(sim(addrKey(e.address),addrKey(p.address))>=0.6||(p.name&&sim(e.name,p.name)>=0.7)));
-    // lu sans n° de tour (ou l'inverse) mais même immeuble = même page
-    if(!same)same=state.entries.find(e=>(!pda||e.pda==null)&&sameBuilding(e.address,p.address)&&(!p.name||!e.name||sim(e.name,p.name)>=0.6));
-    if(same){if(pda&&same.pda==null)same.pda=pda;revote(same,p);dup++;continue}
+    // même immeuble (+ nom proche) déjà scanné : même page, sauf si les deux n° de tour sont sûrs et différents
+    if(!same)same=state.entries.find(e=>sameBuilding(e.address,p.address)&&(!p.name||!e.name||sim(e.name,p.name)>=0.6)&&(!pda||e.pda==null||e.pda===pda||!sureP||e.pdaSure===false));
+    if(same){
+      if(pda&&(same.pda==null||(sureP&&same.pdaSure===false&&same.pda!==pda))){same.pda=pda;same.pdaSure=sureP}
+      revote(same,p);dup++;continue}
+    // n° deviné (étiquette illisible) déjà pris par une autre adresse : on ne l'invente pas
+    if(pda&&!sureP&&state.entries.some(e=>e.pda===pda))pda=null;
     const d=state.entries.some(e=>e.pda===pda&&norm(e.name)===norm(p.name)&&addrKey(e.address)===addrKey(p.address)&&(+e.parcels||1)===(p.parcels||1));
     if(d)dup++;
-    state.entries.push({id:uid(),pda:p.pda==null?null:String(p.pda),name:p.name,address:p.address,parcels:p.parcels||1,lat:null,lon:null,geo:null,dup:d});added++;
+    state.entries.push({id:uid(),pda,pdaSure:sureP,name:p.name,address:p.address,parcels:p.parcels||1,lat:null,lon:null,geo:null,dup:d});added++;
   }
   persist();renderEntries();
   return {added,dup};
@@ -1203,7 +1276,7 @@ $('#entries').addEventListener('change',e=>{
   const card=e.target.closest('.entry');if(!card)return;
   const ent=state.entries.find(x=>x.id===card.dataset.id);if(!ent)return;
   const f=e.target.dataset.f,v=e.target.value;
-  if(f==='pda')ent.pda=v.trim()===''?null:v.trim().toUpperCase();
+  if(f==='pda'){ent.pda=v.trim()===''?null:v.trim().toUpperCase();ent.pdaSure=true}
   else if(f==='parcels')ent.parcels=Math.max(1,+v||1);
   else if(f==='name')ent.name=v.trim();
   else if(f==='address'){ent.address=v.trim();ent.lat=ent.lon=null;ent.geo=null;ent.bldg='';ent.boxNo='';ent.ambig=false;delete ent.swap}
