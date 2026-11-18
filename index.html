@@ -122,6 +122,8 @@ details[open] summary{margin-bottom:8px}
 .stoplist .st{font-size:18px}
 .done .d{opacity:.5;text-decoration:line-through}
 .done .n{color:var(--muted)}
+.birdnote{margin-top:10px;background:rgba(255,192,77,.18);color:#ffe2a8;border-radius:12px;padding:8px 10px;font-size:13px;font-weight:600}
+.stoplist .birdtag{font-size:12px;font-weight:700;color:var(--warn)}
 .celebrate{animation:boom .5s ease}
 @keyframes boom{0%{transform:scale(1)}40%{transform:scale(1.04)}100%{transform:scale(1)}}
 #map{height:calc(100vh - 210px);min-height:320px;border-radius:20px;box-shadow:var(--shadow)}
@@ -273,6 +275,9 @@ nav.tabs .i{width:22px;height:22px}
       <button class="btn" id="exportBtn">Sauvegarder</button>
       <label class="btn" style="cursor:pointer;grid-column:1/-1">Restaurer<input type="file" id="importInput" accept="application/json" style="display:none"></label>
     </div>
+    <p class="muted" style="margin-bottom:4px">Clé Openrouteservice (2e calculateur de trajets, gratuit) — <a href="https://account.heigit.org/" target="_blank" rel="noopener">créer une clé</a></p>
+    <div class="row"><input id="orsKeyInput" class="grow" type="password" autocomplete="off" placeholder="Colle ta clé ici"><button class="btn" id="orsKeySave">OK</button></div>
+    <div id="orsKeyInfo" class="muted mt"></div>
     <p class="muted">Photos gardées : <b id="photoCount">0</b></p>
     <p class="muted">Positions corrigées : <b id="learnCount">0</b> <button class="iconbtn" id="clearLearn" title="Oublier">×</button></p>
     <p class="muted">Rues apprises : <b id="streetCount">0</b> <button class="iconbtn" id="clearStreets" title="Oublier">×</button></p>
@@ -297,6 +302,7 @@ nav.tabs .i{width:22px;height:22px}
       <div class="client" id="curName"></div>
       <div class="addr" id="curAddr"></div>
       <div class="parcels" id="curParcels"></div>
+      <div id="curBird" class="birdnote" style="display:none">Trajet vers ce stop estimé à vol d'oiseau (aucun calculateur n'a répondu) : l'ordre peut être moins bon ici.</div>
       <div class="actions">
         <button class="btn ok big full" id="doneBtn"><svg class="i"><use href="#i-check"/></svg>Livré</button>
         <a class="btn waze big" id="wazeBtn" target="_blank" rel="noopener"><svg class="i"><use href="#i-nav"/></svg>Waze</a>
@@ -1474,29 +1480,77 @@ async function fetchJson(url,tries=3){
   for(let t=0;t<tries;t++){try{const r=await fetch(url);if(r.ok)return await r.json();if(r.status!==429&&r.status<500)throw new Error('HTTP '+r.status)}catch(e){if(t===tries-1)throw e}await sleep(1500*(t+1))}
   throw new Error('échec réseau');
 }
+/* Deux calculateurs de trajets, gratuits, qui suivent le réseau routier (sens interdits, interdictions de tourner) :
+   - OSRM (serveur public, sans clé)
+   - Openrouteservice (clé gratuite à mettre dans « Plus »)
+   Les deux sont interrogés ; le plus complet et le plus cohérent est gardé, l'autre bouche ses trous.
+   En tout dernier recours : vol d'oiseau, signalé trajet par trajet. */
+const LS_ORS='tournee_ors_key';
+function orsKey(){try{return (localStorage.getItem(LS_ORS)||'').trim()}catch(e){return ''}}
+async function osrmChunk(pts,ga,gb){
+  const same=ga===gb,idx=same?ga:ga.concat(gb);
+  const coords=idx.map(p=>pts[p].lon.toFixed(6)+','+pts[p].lat.toFixed(6)).join(';');
+  const src=ga.map((_,k)=>k).join(';'),dst=(same?ga.map((_,k)=>k):gb.map((_,k)=>ga.length+k)).join(';');
+  const j=await fetchJson(`https://router.project-osrm.org/table/v1/driving/${coords}?sources=${src}&destinations=${dst}&annotations=duration,distance`);
+  if(j.code!=='Ok')throw new Error(j.code);
+  return {dur:j.durations,dist:j.distances};
+}
+let orsBase='https://api.heigit.org/openrouteservice';
+async function orsChunk(pts,ga,gb,key){
+  const same=ga===gb,idx=same?ga:ga.concat(gb);
+  const body=JSON.stringify({locations:idx.map(p=>[+pts[p].lon.toFixed(6),+pts[p].lat.toFixed(6)]),sources:ga.map((_,k)=>k),destinations:same?ga.map((_,k)=>k):gb.map((_,k)=>ga.length+k),metrics:['duration','distance'],units:'m'});
+  let last=null;
+  for(const base of [orsBase,'https://api.openrouteservice.org']){ // nouvelle adresse, puis l'ancienne
+    for(let t=0;t<3;t++){
+      try{
+        const r=await fetch(base+'/v2/matrix/driving-car',{method:'POST',headers:{'Authorization':key,'Content-Type':'application/json','Accept':'application/json'},body});
+        if(r.ok){orsBase=base;const j=await r.json();return {dur:j.durations,dist:j.distances}}
+        last=new Error('ORS '+r.status);
+        if(r.status===401||r.status===403)throw last; // clé refusée : inutile d'insister
+        if(r.status!==429&&r.status<500)break;
+      }catch(e){last=e;if(/ORS 40[13]/.test(e.message))throw e}
+      await sleep(1500*(t+1));
+    }
+  }
+  throw last||new Error('ORS');
+}
 async function buildMatrix(pts,progId){
-  const n=pts.length,dur=new Float64Array(n*n).fill(NaN),dist=new Float64Array(n*n).fill(NaN);
+  const n=pts.length,key=orsKey();
+  const provs=[{id:'osrm',name:'OSRM',fn:(a,b)=>osrmChunk(pts,a,b)}];
+  if(key)provs.push({id:'ors',name:'Openrouteservice',fn:(a,b)=>orsChunk(pts,a,b,key)});
+  provs.forEach(p=>{p.dur=new Float64Array(n*n).fill(NaN);p.dist=new Float64Array(n*n).fill(NaN);p.err=''});
   const G=45,groups=[];for(let i=0;i<n;i+=G){const g=[];for(let k=i;k<Math.min(n,i+G);k++)g.push(k);groups.push(g)}
-  let done=0,failed=0;const totalReq=groups.length*groups.length;
+  let done=0;const totalReq=groups.length*groups.length;
   for(let a=0;a<groups.length;a++)for(let b=0;b<groups.length;b++){
-    const ga=groups[a],gb=groups[b],idx=a===b?ga:ga.concat(gb);
-    const coords=idx.map(p=>pts[p].lon.toFixed(6)+','+pts[p].lat.toFixed(6)).join(';');
-    const src=ga.map((_,k)=>k).join(';'),dst=(a===b?ga.map((_,k)=>k):gb.map((_,k)=>ga.length+k)).join(';');
-    const url=`https://router.project-osrm.org/table/v1/driving/${coords}?sources=${src}&destinations=${dst}&annotations=duration,distance`;
-    try{
-      const j=await fetchJson(url);
-      if(j.code!=='Ok')throw new Error(j.code);
-      ga.forEach((pi,ai)=>gb.forEach((pj,bi)=>{const du=j.durations[ai][bi],di=j.distances?j.distances[ai][bi]:null;if(du!=null)dur[pi*n+pj]=du;if(di!=null)dist[pi*n+pj]=di}));
-    }catch(e){failed++}
+    const ga=groups[a],gb=a===b?ga:groups[b];
+    await Promise.all(provs.map(async p=>{
+      if(p.dead)return;
+      try{const r=await p.fn(ga,gb);
+        ga.forEach((pi,ai)=>gb.forEach((pj,bi)=>{const du=r.dur&&r.dur[ai]?r.dur[ai][bi]:null,di=r.dist&&r.dist[ai]?r.dist[ai][bi]:null;if(du!=null)p.dur[pi*n+pj]=du;if(di!=null)p.dist[pi*n+pj]=di}));
+      }catch(e){p.err=e.message||String(e);if(/40[13]/.test(p.err))p.dead=true}
+    }));
     done++;prog(progId,done/totalReq);
   }
-  let approx=failed>0;
-  for(let i=0;i<n;i++)for(let j=0;j<n;j++){
-    if(i===j){dur[i*n+j]=0;dist[i*n+j]=0;continue}
-    if(isNaN(dur[i*n+j])){const m=haversine(pts[i],pts[j])*1.35;dist[i*n+j]=m;dur[i*n+j]=m/(20/3.6)+30;approx=true}
-    if(isNaN(dist[i*n+j]))dist[i*n+j]=haversine(pts[i],pts[j])*1.35;
+  // note de chaque outil : part des trajets obtenus × part des trajets cohérents (vitesse 3-110 km/h, pas plus court que la ligne droite)
+  const pairs=n*(n-1);
+  for(const p of provs){
+    let got=0,ok=0,tot=0;
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){if(i===j)continue;const du=p.dur[i*n+j],di=p.dist[i*n+j];if(isNaN(du))continue;got++;tot+=du;
+      const h=haversine(pts[i],pts[j]),v=di/Math.max(du,1);if(h<30||(di>=h*0.9&&v>0.8&&v<31))ok++}
+    p.coverage=got/pairs;p.coherent=got?ok/got:0;p.score=p.coverage*p.coherent;p.total=tot;
   }
-  return {dur,dist,approx};
+  // le meilleur ; à égalité (écart < 1 %), Openrouteservice (service officiel, plus stable que le serveur de démo OSRM)
+  const ranked=provs.slice().sort((x,y)=>Math.abs(x.score-y.score)<0.01?(x.id==='ors'?-1:1):y.score-x.score);
+  const main=ranked[0],backup=ranked[1]||null;
+  const dur=new Float64Array(n*n),dist=new Float64Array(n*n),bird=new Uint8Array(n*n);let birdPairs=0,fromBackup=0;
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+    const k=i*n+j;if(i===j)continue;
+    if(!isNaN(main.dur[k])){dur[k]=main.dur[k];dist[k]=isNaN(main.dist[k])?haversine(pts[i],pts[j])*1.35:main.dist[k]}
+    else if(backup&&!isNaN(backup.dur[k])){dur[k]=backup.dur[k];dist[k]=isNaN(backup.dist[k])?haversine(pts[i],pts[j])*1.35:backup.dist[k];fromBackup++}
+    else{const m=haversine(pts[i],pts[j])*1.35;dist[k]=m;dur[k]=m/(20/3.6)+30;bird[k]=1;birdPairs++}
+  }
+  const compare=provs.map(p=>({name:p.name,coverage:p.coverage,coherent:p.coherent,err:p.err}));
+  return {dur,dist,bird,approx:birdPairs>0,birdPairs,used:main.coverage>0?main.name:'',backup:backup&&fromBackup?backup.name:'',compare,provs};
 }
 
 /* ================= Optimiseur (problème du voyageur de commerce asymétrique) =================
@@ -1571,7 +1625,7 @@ async function runOptimization(fromGps,progId,statusEl){
   if(!toOpt.length){status('Plus aucun stop à faire.');return}
   const pts=[start,...toOpt];
   status(`Calcul des temps de trajet entre ${pts.length} points (sens interdits inclus)…`);prog(progId,0);
-  const {dur,dist,approx}=await buildMatrix(pts,progId);
+  const M=await buildMatrix(pts,progId),{dur,dist,approx}=M;
   status('Recherche du meilleur ordre…');await sleep(50);
   // retour au dépôt : seulement si on part du dépôt (en réoptimisation depuis le GPS, fin libre)
   const ret=!!(state.returnToDepot&&state.depot&&start===state.depot);
@@ -1580,13 +1634,22 @@ async function runOptimization(fromGps,progId,statusEl){
   const ordered=order.map(i=>toOpt[i-1]);
   // estimation
   let tsec=0,tm=0,prev=0;
-  for(const i of order){tsec+=dur[prev*n+i];tm+=dist[prev*n+i];prev=i}
+  ordered.forEach(s=>{delete s.bird});
+  order.forEach((i,k)=>{tsec+=dur[prev*n+i];tm+=dist[prev*n+i];if(M.bird[prev*n+i])ordered[k].bird=true;prev=i});
   if(ret){tsec+=dur[prev*n];tm+=dist[prev*n]}
+  // même ordre, temps selon chaque outil (pour comparer)
+  const per=M.provs.map(p=>{let t=0,q=0,miss=0;order.forEach(i=>{const v=p.dur[q*n+i];if(isNaN(v))miss++;else t+=v;q=i});return {name:p.name,t,miss}});
   state.stops=[...fixed,...ordered];
   state.current=state.stops.findIndex(s=>s.status==='todo');if(state.current<0)state.current=0;
-  state.summary={drive:tsec,km:tm/1000,approx,at:Date.now()};
+  const birdLegs=ordered.filter(s=>s.bird).length;
+  state.summary={drive:tsec,km:tm/1000,approx:birdLegs>0,birdLegs,used:M.used,backup:M.backup,at:Date.now()};
   persist();prog(progId,null);
-  status(`${ordered.length} stops · ${fmtDur(tsec)} · ${(tm/1000).toFixed(1)} km`+(approx?' · distances estimées':''));
+  const cmp=per.length>1?'<br><span class="muted">Comparaison : '+per.map(p=>`${p.name} ${p.miss?'incomplet':fmtDur(p.t)}`).join(' · ')+'</span>':'';
+  const errs=M.compare.filter(c=>c.err&&c.coverage<1).map(c=>`${c.name} : ${/40[13]/.test(c.err)?'clé refusée':'indisponible'}`).join(' · ');
+  status(`${ordered.length} stops · ${fmtDur(tsec)} · ${(tm/1000).toFixed(1)} km`+
+    `<br><span class="muted">Trajets : ${M.used||'aucun outil disponible'}${M.backup?` (complété par ${M.backup})`:''}</span>`+cmp+
+    (errs?`<br><span class="muted">${errs}</span>`:'')+
+    (birdLegs?`<br><b>Attention : ${birdLegs} trajet${birdLegs>1?'s':''} estimé${birdLegs>1?'s':''} à vol d'oiseau</b> (signalé${birdLegs>1?'s':''} dans la tournée)`:''));
   renderEntries();
   return true;
 }
@@ -1623,6 +1686,7 @@ function renderTour(){
   $('#curAddr').textContent=s.address+(twoNum?`  →  n° ${e0.bldg}`:'');
   const np=stopParcels(s);
   $('#curParcels').textContent=`${np} colis`+(cl.length>1?` · ${cl.length} clients`:'');
+  $('#curBird').style.display=s.bird?'block':'none';
   $('#curStatus').innerHTML=s.status==='done'?'<span class="badge b-ok">Livré</span>':s.status==='fail'?'<span class="badge b-bad">Échec</span>':'';
   $('#resetStopBtn').style.display=s.status==='todo'?'none':'block';
   $('#wazeBtn').href=`https://waze.com/ul?ll=${s.lat},${s.lon}&navigate=yes`;
@@ -1634,7 +1698,7 @@ function renderTour(){
   $('#stopList').innerHTML=st.map((x,i)=>{const e=stopEntries(x),p=uniqPdas(e);
     return `<div class="it ${i===state.current?'cur':''} ${x.status!=='todo'?'done':''}" data-i="${i}">
       <div class="n">#${i+1}</div>
-      <div class="d"><div><b>${esc(clientsOfStop(x).map(c=>c.name||'(sans nom)').join(', '))}</b></div><div class="muted">${p.length?'PDA '+p.join(', ')+' · ':''}${stopParcels(x)} colis · ${esc(x.address)}</div></div>
+      <div class="d"><div><b>${esc(clientsOfStop(x).map(c=>c.name||'(sans nom)').join(', '))}</b></div><div class="muted">${p.length?'PDA '+p.join(', ')+' · ':''}${stopParcels(x)} colis · ${esc(x.address)}</div>${x.bird?'<div class="birdtag">trajet estimé à vol d\'oiseau</div>':''}</div>
       <div class="st">${x.status==='done'?'<svg class="i" style="color:var(--ok)"><use href="#i-check"/></svg>':x.status==='fail'?'<svg class="i" style="color:var(--bad)"><use href="#i-x"/></svg>':''}</div></div>`}).join('');
 }
 $('#stopList').addEventListener('click',e=>{const it=e.target.closest('.it');if(!it)return;state.current=+it.dataset.i;persist();renderTour();window.scrollTo({top:0,behavior:'smooth'})});
@@ -1718,6 +1782,18 @@ $('#clearStreets').onclick=()=>{if(confirm('Oublier les rues apprises ?')){stree
 $('#clearLearn').onclick=()=>{if(confirm('Oublier toutes les positions corrigées à la main ?')){learned={};save(LS_LEARN,learned);renderEntries()}};
 
 photoCount();
+/* clé Openrouteservice : testée à l'enregistrement */
+function orsKeyShow(){const k=orsKey();$('#orsKeyInput').value=k;$('#orsKeyInfo').textContent=k?'Clé enregistrée : les deux calculateurs sont comparés.':'Sans clé : OSRM seul.'}
+$('#orsKeySave').onclick=async()=>{
+  const k=$('#orsKeyInput').value.trim();
+  try{if(k)localStorage.setItem(LS_ORS,k);else localStorage.removeItem(LS_ORS)}catch(e){}
+  if(!k){orsKeyShow();return}
+  $('#orsKeyInfo').textContent='Test de la clé…';
+  try{const p=[{lat:50.8357,lon:4.3098},{lat:50.8393,lon:4.3277}];const r=await orsChunk(p,[0,1],[0,1],k);
+    $('#orsKeyInfo').textContent=r.dur&&r.dur[0]&&r.dur[0][1]>0?'Clé valide. Les deux calculateurs seront comparés.':'Réponse inattendue du service.'}
+  catch(e){$('#orsKeyInfo').textContent=/40[13]/.test(e.message)?'Clé refusée : vérifie-la.':'Service injoignable pour le moment (clé gardée).'}
+};
+orsKeyShow();
 /* ================= Installation comme application ================= */
 const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 let installEvt=null;
