@@ -278,6 +278,9 @@ nav.tabs .i{width:22px;height:22px}
     <p class="muted" style="margin-bottom:4px">Clé Openrouteservice (2e calculateur de trajets, gratuit) — <a href="https://account.heigit.org/" target="_blank" rel="noopener">créer une clé</a></p>
     <div class="row"><input id="orsKeyInput" class="grow" type="password" autocomplete="off" placeholder="Colle ta clé ici"><button class="btn" id="orsKeySave">OK</button></div>
     <div id="orsKeyInfo" class="muted mt"></div>
+    <p class="muted" style="margin:12px 0 4px">Clé TomTom (trafic en direct, quota gratuit limité) — <a href="https://developer.tomtom.com/" target="_blank" rel="noopener">créer une clé</a></p>
+    <div class="row"><input id="ttKeyInput" class="grow" type="password" autocomplete="off" placeholder="Colle ta clé ici"><button class="btn" id="ttKeySave">OK</button></div>
+    <div id="ttKeyInfo" class="muted mt"></div>
     <p class="muted">Photos gardées : <b id="photoCount">0</b></p>
     <p class="muted">Positions corrigées : <b id="learnCount">0</b> <button class="iconbtn" id="clearLearn" title="Oublier">×</button></p>
     <p class="muted">Rues apprises : <b id="streetCount">0</b> <button class="iconbtn" id="clearStreets" title="Oublier">×</button></p>
@@ -1514,11 +1517,48 @@ async function orsChunk(pts,ga,gb,key){
   }
   throw last||new Error('ORS');
 }
+/* TomTom : seul outil gratuit avec le trafic en direct. Quota gratuit limité -> consommation comptée sur le téléphone.
+   Facturation TomTom d'une matrice : si origines et destinations > 5 : 5 × la plus grande dimension, sinon origines × destinations. */
+const LS_TT='tournee_tomtom_key',LS_TTUSE='tournee_tomtom_use',TT_DAY=2400;
+function ttKey(){try{return (localStorage.getItem(LS_TT)||'').trim()}catch(e){return ''}}
+function ttUse(){const d=new Date().toISOString().slice(0,10);const u=load(LS_TTUSE,{});return u.d===d?u:{d,n:0}}
+function ttAdd(n){const u=ttUse();u.n+=n;save(LS_TTUSE,u)}
+function ttCost(a,b){return a>5&&b>5?5*Math.max(a,b):a*b}
+function ttPlan(n){const k=Math.ceil(n/50),g=Math.ceil(n/k),groups=[];for(let i=0;i<n;i+=g){const x=[];for(let j=i;j<Math.min(n,i+g);j++)x.push(j);groups.push(x)}
+  let cost=0;groups.forEach(a=>groups.forEach(b=>cost+=ttCost(a.length,b.length)));return {groups,cost}}
+async function ttJob(pts,ga,gb,key){
+  const P=i=>({point:{latitude:+pts[i].lat.toFixed(6),longitude:+pts[i].lon.toFixed(6)}});
+  const B='https://api.tomtom.com/routing/matrix/2/async';
+  const r=await fetch(B+'?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({origins:ga.map(P),destinations:gb.map(P),options:{departAt:'now',traffic:'live',travelMode:'car',routeType:'fastest'}})});
+  if(!r.ok)throw new Error('TT '+r.status);
+  ttAdd(ttCost(ga.length,gb.length));
+  const {jobId}=await r.json();
+  for(let k=0;k<60;k++){
+    await sleep(k<3?1000:2000);
+    const s=await (await fetch(`${B}/${jobId}?key=${encodeURIComponent(key)}`)).json();
+    if(s.state==='Completed')return await (await fetch(`${B}/${jobId}/result?key=${encodeURIComponent(key)}`)).json();
+    if(s.state==='Failed')throw new Error('TT échec');
+  }
+  throw new Error('TT délai dépassé');
+}
+async function ttMatrix(pts,p){
+  const key=ttKey(),n=pts.length,{groups,cost}=ttPlan(n),left=TT_DAY-ttUse().n;
+  if(cost>left){p.err=`quota du jour insuffisant (${cost} nécessaires, ${Math.max(0,left)} restants)`;return}
+  for(const ga of groups)for(const gb of groups){
+    const j=await ttJob(pts,ga,gb,key);
+    (j.data||[]).forEach(c=>{if(!c.routeSummary)return;const k=ga[c.originIndex]*n+gb[c.destinationIndex];p.dur[k]=c.routeSummary.travelTimeInSeconds;p.dist[k]=c.routeSummary.lengthInMeters;p.delay=(p.delay||0)+(c.routeSummary.trafficDelayInSeconds||0)});
+  }
+}
 async function buildMatrix(pts,progId){
   const n=pts.length,key=orsKey();
   const provs=[{id:'osrm',name:'OSRM',fn:(a,b)=>osrmChunk(pts,a,b)}];
   if(key)provs.push({id:'ors',name:'Openrouteservice',fn:(a,b)=>orsChunk(pts,a,b,key)});
   provs.forEach(p=>{p.dur=new Float64Array(n*n).fill(NaN);p.dist=new Float64Array(n*n).fill(NaN);p.err=''});
+  // TomTom (matrice entière, en parallèle des autres)
+  let ttP=null,tt=null;
+  if(ttKey()){tt={id:'tt',name:'TomTom (trafic en direct)',dur:new Float64Array(n*n).fill(NaN),dist:new Float64Array(n*n).fill(NaN),err:''};
+    ttP=ttMatrix(pts,tt).catch(e=>{tt.err=e.message||String(e)})}
   const G=45,groups=[];for(let i=0;i<n;i+=G){const g=[];for(let k=i;k<Math.min(n,i+G);k++)g.push(k);groups.push(g)}
   let done=0;const totalReq=groups.length*groups.length;
   for(let a=0;a<groups.length;a++)for(let b=0;b<groups.length;b++){
@@ -1531,6 +1571,7 @@ async function buildMatrix(pts,progId){
     }));
     done++;prog(progId,done/totalReq);
   }
+  if(ttP){await ttP;provs.push(tt)}
   // note de chaque outil : part des trajets obtenus × part des trajets cohérents (vitesse 3-110 km/h, pas plus court que la ligne droite)
   const pairs=n*(n-1);
   for(const p of provs){
@@ -1540,13 +1581,15 @@ async function buildMatrix(pts,progId){
     p.coverage=got/pairs;p.coherent=got?ok/got:0;p.score=p.coverage*p.coherent;p.total=tot;
   }
   // le meilleur ; à égalité (écart < 1 %), Openrouteservice (service officiel, plus stable que le serveur de démo OSRM)
-  const ranked=provs.slice().sort((x,y)=>Math.abs(x.score-y.score)<0.01?(x.id==='ors'?-1:1):y.score-x.score);
-  const main=ranked[0],backup=ranked[1]||null;
+  // TomTom passe devant dès qu'il est assez complet : c'est le seul qui connaît le trafic du moment
+  const rank=p=>p.score+(p.id==='tt'&&p.coverage>=0.85&&p.coherent>=0.9?1:0)+(p.id==='ors'?0.005:0);
+  const ranked=provs.slice().sort((x,y)=>rank(y)-rank(x));
+  const main=ranked[0],backup=ranked.find(p=>p!==main&&p.coverage>0)||null;
   const dur=new Float64Array(n*n),dist=new Float64Array(n*n),bird=new Uint8Array(n*n);let birdPairs=0,fromBackup=0;
   for(let i=0;i<n;i++)for(let j=0;j<n;j++){
     const k=i*n+j;if(i===j)continue;
-    if(!isNaN(main.dur[k])){dur[k]=main.dur[k];dist[k]=isNaN(main.dist[k])?haversine(pts[i],pts[j])*1.35:main.dist[k]}
-    else if(backup&&!isNaN(backup.dur[k])){dur[k]=backup.dur[k];dist[k]=isNaN(backup.dist[k])?haversine(pts[i],pts[j])*1.35:backup.dist[k];fromBackup++}
+    const src=ranked.find(p=>!isNaN(p.dur[k])); // le meilleur outil qui a ce trajet
+    if(src){dur[k]=src.dur[k];dist[k]=isNaN(src.dist[k])?haversine(pts[i],pts[j])*1.35:src.dist[k];if(src!==main)fromBackup++}
     else{const m=haversine(pts[i],pts[j])*1.35;dist[k]=m;dur[k]=m/(20/3.6)+30;bird[k]=1;birdPairs++}
   }
   const compare=provs.map(p=>({name:p.name,coverage:p.coverage,coherent:p.coherent,err:p.err}));
@@ -1645,10 +1688,11 @@ async function runOptimization(fromGps,progId,statusEl){
   state.summary={drive:tsec,km:tm/1000,approx:birdLegs>0,birdLegs,used:M.used,backup:M.backup,at:Date.now()};
   persist();prog(progId,null);
   const cmp=per.length>1?'<br><span class="muted">Comparaison : '+per.map(p=>`${p.name} ${p.miss?'incomplet':fmtDur(p.t)}`).join(' · ')+'</span>':'';
-  const errs=M.compare.filter(c=>c.err&&c.coverage<1).map(c=>`${c.name} : ${/40[13]/.test(c.err)?'clé refusée':'indisponible'}`).join(' · ');
+  const errs=M.compare.filter(c=>c.err&&c.coverage<1).map(c=>`${c.name} : ${/quota/.test(c.err)?c.err:/40[13]/.test(c.err)?'clé refusée ou quota épuisé':'indisponible'}`).join(' · ');
+  const ttu=ttKey()?`<br><span class="muted">TomTom aujourd'hui : ${ttUse().n} / ${TT_DAY}</span>`:'';
   status(`${ordered.length} stops · ${fmtDur(tsec)} · ${(tm/1000).toFixed(1)} km`+
     `<br><span class="muted">Trajets : ${M.used||'aucun outil disponible'}${M.backup?` (complété par ${M.backup})`:''}</span>`+cmp+
-    (errs?`<br><span class="muted">${errs}</span>`:'')+
+    (errs?`<br><span class="muted">${errs}</span>`:'')+ttu+
     (birdLegs?`<br><b>Attention : ${birdLegs} trajet${birdLegs>1?'s':''} estimé${birdLegs>1?'s':''} à vol d'oiseau</b> (signalé${birdLegs>1?'s':''} dans la tournée)`:''));
   renderEntries();
   return true;
@@ -1794,6 +1838,19 @@ $('#orsKeySave').onclick=async()=>{
   catch(e){$('#orsKeyInfo').textContent=/40[13]/.test(e.message)?'Clé refusée : vérifie-la.':'Service injoignable pour le moment (clé gardée).'}
 };
 orsKeyShow();
+function ttKeyShow(){const k=ttKey();$('#ttKeyInput').value=k;$('#ttKeyInfo').textContent=k?`Clé enregistrée · utilisé aujourd'hui : ${ttUse().n} / ${TT_DAY}`:'Sans clé : trajets sans trafic.'}
+$('#ttKeySave').onclick=async()=>{
+  const k=$('#ttKeyInput').value.trim();
+  try{if(k)localStorage.setItem(LS_TT,k);else localStorage.removeItem(LS_TT)}catch(e){}
+  if(!k){ttKeyShow();return}
+  $('#ttKeyInfo').textContent='Test de la clé…';
+  try{const P=[{latitude:50.8357,longitude:4.3098},{latitude:50.8393,longitude:4.3277}].map(p=>({point:p}));
+    const r=await fetch('https://api.tomtom.com/routing/matrix/2?key='+encodeURIComponent(k),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({origins:P,destinations:P,options:{departAt:'now',traffic:'live'}})});
+    ttAdd(4);
+    $('#ttKeyInfo').textContent=r.ok?`Clé valide · utilisé aujourd'hui : ${ttUse().n} / ${TT_DAY}`:r.status===403||r.status===401?'Clé refusée : vérifie-la.':'Service injoignable pour le moment (clé gardée).'}
+  catch(e){$('#ttKeyInfo').textContent='Service injoignable pour le moment (clé gardée).'}
+};
+ttKeyShow();
 /* ================= Installation comme application ================= */
 const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 let installEvt=null;
