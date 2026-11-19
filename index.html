@@ -281,6 +281,9 @@ nav.tabs .i{width:22px;height:22px}
     <p class="muted" style="margin:12px 0 4px">Clé TomTom (trafic en direct, quota gratuit limité) — <a href="https://developer.tomtom.com/" target="_blank" rel="noopener">créer une clé</a></p>
     <div class="row"><input id="ttKeyInput" class="grow" type="password" autocomplete="off" placeholder="Colle ta clé ici"><button class="btn" id="ttKeySave">OK</button></div>
     <div id="ttKeyInfo" class="muted mt"></div>
+    <p class="muted" style="margin:12px 0 4px">Clé Mistral (lecture des photos par IA ; les photos sont envoyées à Mistral) — <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener">créer une clé</a></p>
+    <div class="row"><input id="misKeyInput" class="grow" type="password" autocomplete="off" placeholder="Colle ta clé ici"><button class="btn" id="misKeySave">OK</button></div>
+    <div id="misKeyInfo" class="muted mt"></div>
     <p class="muted">Photos gardées : <b id="photoCount">0</b></p>
     <p class="muted">Positions corrigées : <b id="learnCount">0</b> <button class="iconbtn" id="clearLearn" title="Oublier">×</button></p>
     <p class="muted">Rues apprises : <b id="streetCount">0</b> <button class="iconbtn" id="clearStreets" title="Oublier">×</button></p>
@@ -733,14 +736,16 @@ async function photoCount(){const el=$('#photoCount');if(el)el.textContent=(awai
 async function ocrPage(src){
   const r=await ocrRead(src);
   if(!r.list.length)return {ok:false,text:r.text};
+  resequence(r.list);
   const m=mergeParsed(r.list);
   return {ok:true,list:r.list,added:m.added,dup:m.dup};
 }
 /* n° de tour revus avec les colis déjà scannés : une carte déjà connue (même immeuble, n° sûr) sert de repère
-   pour déduire les n° illisibles de ses voisines sur la même photo */
-function resequence(list,tags){
-  if(!list.length||!state.entries.length)return;
-  const slots=tags.map(t=>({dg:t.readDg||'',L:t.L||''}));
+   pour déduire les n° illisibles de ses voisines sur la même photo. Appelé juste avant l'ajout à la liste.
+   list._slots : une case par étiquette de la photo (n° lu), p.ti : case de chaque carte */
+function resequence(list){
+  if(!list.length||!list._slots||!state.entries.length)return;
+  const slots=list._slots.map(t=>({dg:t.dg||'',L:t.L||''}));
   let anchors=0;
   list.forEach(p=>{
     const s=slots[p.ti];if(!s)return;
@@ -752,14 +757,63 @@ function resequence(list,tags){
   list.forEach(p=>{const s=slots[p.ti];if(s&&s.dg&&(s.sure||s.anchor)){p.pda=s.L+s.dg;p.pdaSure=true}});
 }
 /* lecture seule (sans ajout à la liste) */
+/* ---------- Lecture par IA (Mistral, vision) : plus fiable sur une photo d'écran ; l'OCR local reste en secours ---------- */
+const LS_MIS='tournee_mistral_key';
+function misKey(){try{return (localStorage.getItem(LS_MIS)||'').trim()}catch(e){return ''}}
+const AI_MODELS=['mistral-small-latest','ministral-14b-latest','ministral-8b-latest'];
+const AI_PROMPT=`Photo de l'écran d'un PDA de livreur (Belgique). Chaque livraison est une carte avec : un n° de tour en haut à gauche (ex. D12), une adresse (rue, n°, parfois boîte/bus/bte, code postal, commune), le nom du client, et parfois un nombre de colis.
+Renvoie UNIQUEMENT du JSON : {"cards":[{"tour":"D12","street":"Rue Wayez","number":"54","box":"3","postcode":"1070","city":"Anderlecht","name":"Karim Benali","parcels":1}]}
+Règles : cartes dans l'ordre de lecture (de haut en bas, de gauche à droite). Recopie exactement ce qui est écrit, sans corriger ni inventer. Ignore les cartes coupées par le bord de la photo (adresse ou nom incomplet). Champ inconnu = "". parcels = 1 si non indiqué.`;
+let aiLast=0,aiModel=0;
+async function toJpegURL(src,max=1600){
+  let bmp=src;if(src instanceof Blob){try{bmp=await createImageBitmap(src,{imageOrientation:'from-image'})}catch(e){bmp=await createImageBitmap(src)}}
+  const k=Math.min(1,max/Math.max(bmp.width,bmp.height)),c=document.createElement('canvas');c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);
+  c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);return {url:c.toDataURL('image/jpeg',0.85),canvas:c};
+}
+async function aiRead(src){
+  const key=misKey();if(!key)return null;
+  const {url,canvas}=await toJpegURL(src);photoSave(canvas);
+  for(let t=0;t<6;t++){
+    const wait=aiLast+1600-Date.now();if(wait>0)await sleep(wait); // offre gratuite : pas plus d'un envoi par ~1,5 s
+    aiLast=Date.now();
+    const model=AI_MODELS[aiModel%AI_MODELS.length];
+    let r;try{r=await fetch('https://api.mistral.ai/v1/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},
+      body:JSON.stringify({model,temperature:0,response_format:{type:'json_object'},messages:[{role:'user',content:[{type:'text',text:AI_PROMPT},{type:'image_url',image_url:url}]}]})})}
+    catch(e){await sleep(1500);continue}
+    if(r.status===401||r.status===403)return null;          // clé refusée -> OCR local
+    if(r.status===429){aiModel++;await sleep(1500*(t+1));continue} // limite : modèle suivant, puis on réessaie
+    if(!r.ok){await sleep(1500);continue}
+    const j=await r.json(),txt=j.choices&&j.choices[0]&&j.choices[0].message.content||'';
+    let cards=[];try{const o=JSON.parse(txt);cards=Array.isArray(o)?o:(o.cards||[])}catch(e){const m=txt.match(/\[[\s\S]*\]/);try{cards=m?JSON.parse(m[0]):[]}catch(e2){}}
+    return {list:aiToList(cards),text:'(IA '+model+')\n'+txt,ai:true};
+  }
+  return null;
+}
+function aiToList(cards){
+  const list=cards.filter(c=>c&&(c.street||c.number)).map(c=>{
+    const box=String(c.box||'').replace(/^(boîte|boite|bte|bus|bt|b)\.?\s*/i,'').trim();
+    const address=`${String(c.street||'').trim()} ${String(c.number||'').trim()}${box?' bte '+box:''}`.trim()+(c.postcode||c.city?`, ${c.postcode||''} ${c.city||''}`.replace(/\s+/g,' ').trimEnd():'');
+    const tg=splitTag(String(c.tour||''));
+    return {pda:tg.dg?(tg.L||'D')+tg.dg:null,name:String(c.name||''),address,parcels:Math.max(1,parseInt(c.parcels)||1),_dg:tg.dg,_L:tg.L};
+  });
+  // n° de tour : même contrôle par la suite logique (D1, D3, D5…) que pour l'OCR local
+  const slots=list.map(p=>({dg:p._dg||''}));fillSequence(slots);
+  // lettre de la tournée (la même pour tous) : celle des colis déjà scannés, sinon la plus lue sur la photo
+  const vote=a=>{const c={};a.forEach(x=>{if(x)c[x]=(c[x]||0)+1});return Object.keys(c).sort((x,y)=>c[y]-c[x])[0]||''};
+  const L=vote(state.entries.map(e=>String(e.pda||'').replace(/\d+$/,'')))||vote(list.map(p=>p._L))||'D';
+  list._slots=list.map(p=>({dg:p._dg||'',L:p._L||L}));
+  list.forEach((p,i)=>{p.ti=i;if(slots[i].dg){p.pda=L+slots[i].dg}p.pdaSure=!!slots[i].sure||(list.length===1&&!!p._dg);delete p._dg;delete p._L});
+  return list;
+}
 async function ocrRead(src){
+  if(misKey()){try{const a=await aiRead(src);if(a&&a.list.length){const raw=$('#rawText');raw.value=(raw.value?raw.value+'\n\n':'')+a.text.trim();return a}}catch(e){}}
   const w=await getWorker();
   const canvas=await preprocess(src);
   photoSave(canvas._orig||canvas);
   // 1) étiquettes colorées (D27…) repérées par la couleur -> chaque carte lue séparément
   let tags=[],list=null,text='';
   try{tags=await readTags(w,canvas,canvas._boxes||[])}catch(e){tags=[]}
-  if(tags.some(t=>t.t)){try{const r=await readCards(w,canvas,tags);list=r.list;text=r.text;resequence(list,tags)}catch(e){list=null}}
+  if(tags.some(t=>t.t)){try{const r=await readCards(w,canvas,tags);list=r.list;text=r.text;list._slots=tags.map(t=>({dg:t.readDg||'',L:t.L||''}))}catch(e){list=null}}
   // 2) sinon lecture de toute la photo
   if(!list||!list.length){
     const {data}=await w.recognize(canvas,{},{text:true,blocks:true});
@@ -922,7 +976,7 @@ async function validateShots(){
   scanWaiter=null;prog('#ocrProg',null);
   // ajout dans l'ordre des photos : une carte vue sur 2 photos est fusionnée
   let added=0,dup=0,fails=0;
-  for(const s of shots){if(s.res&&s.res.list.length){const m=mergeParsed(s.res.list);added+=m.added;dup+=m.dup}else fails++}
+  for(const s of shots){if(s.res&&s.res.list.length){resequence(s.res.list);const m=mergeParsed(s.res.list);added+=m.added;dup+=m.dup}else fails++}
   scanShots=[];
   const toCheck=state.entries.filter(e=>Object.keys(entryIssues(e)).length).length;
   $('#ocrStatus').innerHTML=`<b>${added}</b> colis ajouté${added>1?'s':''}`+(dup?` · ${dup} déjà vu${dup>1?'s':''}`:'')+(fails?` · <b>${fails} photo${fails>1?'s':''} illisible${fails>1?'s':''}</b>`:'')+(toCheck?` · <b>${toCheck} à vérifier</b>`:'');
@@ -1851,6 +1905,17 @@ $('#ttKeySave').onclick=async()=>{
   catch(e){$('#ttKeyInfo').textContent='Service injoignable pour le moment (clé gardée).'}
 };
 ttKeyShow();
+function misKeyShow(){const k=misKey();$('#misKeyInput').value=k;$('#misKeyInfo').textContent=k?'Clé enregistrée : photos lues par l\'IA (lecture locale en secours).':'Sans clé : lecture locale des photos.'}
+$('#misKeySave').onclick=async()=>{
+  const k=$('#misKeyInput').value.trim();
+  try{if(k)localStorage.setItem(LS_MIS,k);else localStorage.removeItem(LS_MIS)}catch(e){}
+  if(!k){misKeyShow();return}
+  $('#misKeyInfo').textContent='Test de la clé…';
+  try{const r=await fetch('https://api.mistral.ai/v1/models',{headers:{Authorization:'Bearer '+k}});
+    $('#misKeyInfo').textContent=r.ok?'Clé valide : photos lues par l\'IA (lecture locale en secours).':r.status===401||r.status===403?'Clé refusée : vérifie-la.':'Service injoignable pour le moment (clé gardée).'}
+  catch(e){$('#misKeyInfo').textContent='Service injoignable pour le moment (clé gardée).'}
+};
+misKeyShow();
 /* ================= Installation comme application ================= */
 const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 let installEvt=null;
